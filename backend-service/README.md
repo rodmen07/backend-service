@@ -49,6 +49,24 @@ HOST=127.0.0.1 PORT=8080 DATABASE_URL=sqlite://app.db cargo run
 - `PATCH /api/v1/tasks/{id}` -> update title/completed
 - `DELETE /api/v1/tasks/{id}` -> delete task
 
+### Validation invariants (v1)
+
+- `title` is required (non-empty after trim)
+- `title` max length is `120` characters
+- Task list ordering is stable by `id ASC`
+
+### Error envelope
+
+All non-2xx API errors follow:
+
+```json
+{
+	"code": "STABLE_ERROR_CODE",
+	"message": "Human-readable message",
+	"details": { "optional": "metadata" }
+}
+```
+
 ## API examples
 
 Create task:
@@ -191,13 +209,37 @@ Use this map to connect files to backend design patterns and Rust-specific pract
 
 ## Roadmap TODOs
 
+### Service definition alignment (n=1)
+
+- [x] Adopt n=1 scope as **Tasks API microservice** (not tenant-routing service)
+- [ ] Document potential v2 pivot path to tenant-header deterministic routing service
+
+### Definition phase checklist (for this Tasks API)
+
+- [ ] Define canonical request/response JSON schemas for each endpoint
+- [ ] Define endpoint failure modes and exact status-code mapping
+- [ ] Specify pagination/filter semantics precisely (defaults, max limit, ordering)
+- [ ] Choose and document one load-bearing invariant for v1
+
+#### Candidate invariant options
+
+- [x] `title` must be non-empty and capped at max length `120`
+- [x] `id` is immutable; PATCH only updates `title` and `completed`
+- [x] List endpoint ordering is stable under pagination (`ORDER BY id ASC`)
+
 ### Core backend
 
 - [x] Add SQLite persistence with `sqlx` (replace in-memory store)
 - [x] Add database migrations and startup migration checks
-- [ ] Add strong request validation (required fields, length constraints)
-- [ ] Standardize API error responses (`code`, `message`, optional `details`)
+- [x] Add strong request validation (required fields, length constraints)
+- [x] Standardize API error responses (`code`, `message`, optional `details`)
 - [x] Add pagination/filtering/sorting for task lists (`limit`, `offset`, `completed`, `q`)
+
+### Contract and errors
+
+- [x] Adopt standard error envelope (`code`, `message`, `details`)
+- [ ] Document error codes and response examples per endpoint
+- [ ] Add OpenAPI/Swagger spec for endpoint contracts
 
 ### Security and access
 
@@ -210,6 +252,7 @@ Use this map to connect files to backend design patterns and Rust-specific pract
 - [ ] Add structured logging with request IDs and latency metrics
 - [ ] Split health checks into `/health` and `/ready` (DB readiness)
 - [ ] Add rate limiting on write endpoints
+- [ ] Define `/health` semantics (process alive) and `/ready` semantics (DB + migrations)
 
 ### Product logic
 
@@ -218,11 +261,18 @@ Use this map to connect files to backend design patterns and Rust-specific pract
 - [ ] Add soft delete semantics
 - [ ] Add idempotency support for `POST` operations
 
+### Auth stance (v1 decision)
+
+- [ ] Decide and document v1 auth stance: no auth, API key, or JWT
+- [ ] If postponed, freeze future auth header contract now to avoid client churn
+
 ### Quality and developer experience
 
 - [x] Add HTTP integration tests for full API flows
 - [ ] Add deterministic test database setup and seed fixtures
-- [ ] Add OpenAPI/Swagger documentation for frontend integration
+- [ ] Add load-test harness (k6 or vegeta)
+- [ ] Define baseline load scenario (create/list/filter/patch/delete)
+- [ ] Define target metrics (RPS, duration, p95 latency)
 
 ### Deployment tracking (GitHub Pages context)
 
@@ -241,7 +291,11 @@ Use this map to connect files to backend design patterns and Rust-specific pract
 ### Recommended implementation order
 
 - [x] 1) Persistence + migrations
-- [ ] 2) Auth middleware
-- [x] 3) Pagination/filtering
-- [ ] 4) Standardized error model
-- [x] 5) Integration tests
+- [x] 2) Service contract + invariant definition
+- [x] 3) Standardized error model
+- [x] 4) Validation hardening (including invariant enforcement)
+- [x] 5) Pagination/filtering
+- [x] 6) Integration tests
+- [ ] 7) `/health` + `/ready` operational semantics
+- [ ] 8) Auth stance decision + interface freeze
+- [ ] 9) Load-test spec and harness

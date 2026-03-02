@@ -163,3 +163,67 @@ async fn list_tasks_respects_filters_and_pagination() {
     assert_eq!(tasks.len(), 1);
     assert_eq!(tasks[0]["title"], "Design UI");
 }
+
+/// Verifies standardized error envelope for empty-title validation failures.
+#[tokio::test]
+async fn create_task_rejects_empty_title_with_error_code() {
+    let test_app = test_app().await;
+
+    let create_request = Request::builder()
+        .method("POST")
+        .uri("/api/v1/tasks")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"title":"   "}"#))
+        .expect("failed to build create request");
+
+    let create_response = test_app
+        .app
+        .clone()
+        .oneshot(create_request)
+        .await
+        .expect("create request failed");
+
+    assert_eq!(create_response.status(), StatusCode::BAD_REQUEST);
+
+    let body_bytes = to_bytes(create_response.into_body(), usize::MAX)
+        .await
+        .expect("failed reading response body");
+    let payload: Value =
+        serde_json::from_slice(&body_bytes).expect("failed to parse error response body");
+
+    assert_eq!(payload["code"], "VALIDATION_TITLE_REQUIRED");
+    assert_eq!(payload["message"], "title is required");
+}
+
+/// Verifies title-length invariant and details payload for overly long titles.
+#[tokio::test]
+async fn create_task_rejects_too_long_title_with_details() {
+    let test_app = test_app().await;
+    let long_title = "x".repeat(121);
+
+    let create_request = Request::builder()
+        .method("POST")
+        .uri("/api/v1/tasks")
+        .header("content-type", "application/json")
+        .body(Body::from(format!(r#"{{"title":"{long_title}"}}"#)))
+        .expect("failed to build create request");
+
+    let create_response = test_app
+        .app
+        .clone()
+        .oneshot(create_request)
+        .await
+        .expect("create request failed");
+
+    assert_eq!(create_response.status(), StatusCode::BAD_REQUEST);
+
+    let body_bytes = to_bytes(create_response.into_body(), usize::MAX)
+        .await
+        .expect("failed reading response body");
+    let payload: Value =
+        serde_json::from_slice(&body_bytes).expect("failed to parse error response body");
+
+    assert_eq!(payload["code"], "VALIDATION_TITLE_TOO_LONG");
+    assert_eq!(payload["details"]["max"], 120);
+    assert_eq!(payload["details"]["actual"], 121);
+}

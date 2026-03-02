@@ -3,6 +3,7 @@
 //! These types define the contract between clients, handlers, and the database layer.
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use sqlx::FromRow;
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
@@ -32,8 +33,11 @@ pub struct ListTasksQuery {
 }
 
 #[derive(Debug, Serialize)]
-pub struct ApiMessage {
+pub struct ApiError {
+    pub code: String,
     pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub details: Option<Value>,
 }
 
 #[derive(Debug, Serialize)]
