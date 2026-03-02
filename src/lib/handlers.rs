@@ -237,21 +237,15 @@ pub(crate) async fn plan_tasks(Json(payload): Json<GoalPlanRequest>) -> impl Int
 
     let client = reqwest::Client::new();
     let user_prompt = format!(
-        "Goal: {goal}\n\nReturn 5 to 10 concrete tasks. Respond with JSON only in this exact shape: {{\"tasks\":[\"...\"]}}"
+        "You are a planning assistant. Break goals into practical, actionable tasks. Output valid JSON only.\n\nGoal: {goal}\n\nReturn 5 to 10 concrete tasks. Respond with JSON only in this exact shape: {{\"tasks\":[\"...\"]}}"
     );
 
     let request_body = OpenRouterRequest {
         model,
-        messages: vec![
-            OpenRouterMessage {
-                role: "system".to_string(),
-                content: "You are a planning assistant. Break goals into practical, actionable tasks. Output valid JSON only.".to_string(),
-            },
-            OpenRouterMessage {
-                role: "user".to_string(),
-                content: user_prompt,
-            },
-        ],
+        messages: vec![OpenRouterMessage {
+            role: "user".to_string(),
+            content: user_prompt,
+        }],
         temperature: 0.2,
     };
 
