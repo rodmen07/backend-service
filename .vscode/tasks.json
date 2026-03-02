@@ -1,0 +1,49 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Build Rust app",
+			"type": "shell",
+			"command": "bash",
+			"args": [
+				"-lc",
+				". \"$HOME/.cargo/env\" && cargo build"
+			],
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Build Rust app (release)",
+			"type": "shell",
+			"command": "bash",
+			"args": [
+				"-lc",
+				". \"$HOME/.cargo/env\" && cargo build --release"
+			],
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Run Rust app",
+			"type": "shell",
+			"command": "bash",
+			"args": [
+				"-lc",
+				". \"$HOME/.cargo/env\" && cargo run"
+			],
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Run Rust app (release)",
+			"type": "shell",
+			"command": "bash",
+			"args": [
+				"-lc",
+				". \"$HOME/.cargo/env\" && cargo run --release"
+			],
+			"isBackground": false,
+			"group": "build"
+		}
+	]
+}
