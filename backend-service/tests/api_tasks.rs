@@ -227,3 +227,32 @@ async fn create_task_rejects_too_long_title_with_details() {
     assert_eq!(payload["details"]["max"], 120);
     assert_eq!(payload["details"]["actual"], 121);
 }
+
+/// Verifies readiness endpoint reports ready when DB is reachable.
+#[tokio::test]
+async fn ready_endpoint_reports_ready() {
+    let test_app = test_app().await;
+
+    let ready_request = Request::builder()
+        .method("GET")
+        .uri("/ready")
+        .body(Body::empty())
+        .expect("failed to build ready request");
+
+    let ready_response = test_app
+        .app
+        .clone()
+        .oneshot(ready_request)
+        .await
+        .expect("ready request failed");
+
+    assert_eq!(ready_response.status(), StatusCode::OK);
+
+    let body_bytes = to_bytes(ready_response.into_body(), usize::MAX)
+        .await
+        .expect("failed reading ready response body");
+    let payload: Value =
+        serde_json::from_slice(&body_bytes).expect("failed to parse ready response body");
+
+    assert_eq!(payload["status"], "ready");
+}
