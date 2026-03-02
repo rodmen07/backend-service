@@ -44,7 +44,7 @@ HOST=127.0.0.1 PORT=8080 DATABASE_URL=sqlite://app.db cargo run
 ## API endpoints
 
 - `GET /health` -> health check
-- `GET /api/v1/tasks` -> list tasks
+- `GET /api/v1/tasks` -> list tasks (`limit`, `offset`, `completed`, `q`)
 - `POST /api/v1/tasks` -> create task
 - `PATCH /api/v1/tasks/{id}` -> update title/completed
 - `DELETE /api/v1/tasks/{id}` -> delete task
@@ -63,6 +63,12 @@ List tasks:
 
 ```bash
 curl http://localhost:3000/api/v1/tasks
+```
+
+List tasks with filters:
+
+```bash
+curl "http://localhost:3000/api/v1/tasks?limit=20&offset=0&completed=false&q=design"
 ```
 
 Update task:
@@ -127,6 +133,12 @@ Release defaults are configured in `Cargo.toml`:
 
 - PR template: `.github/pull_request_template.md`
 - Branch protection setup: `.github/branch-protection-checklist.md`
+- Code owners: `.github/CODEOWNERS`
+
+Current solo-maintainer PR rules:
+
+- PRs and required CI checks are enforced on `main`
+- Required approvals are set to `0` (self-review limitation on GitHub)
 
 ## Debug in VS Code
 
@@ -142,7 +154,7 @@ Release defaults are configured in `Cargo.toml`:
 - [x] Add database migrations and startup migration checks
 - [ ] Add strong request validation (required fields, length constraints)
 - [ ] Standardize API error responses (`code`, `message`, optional `details`)
-- [ ] Add pagination/filtering/sorting for task lists (`limit`, `offset`, `completed`, `q`)
+- [x] Add pagination/filtering/sorting for task lists (`limit`, `offset`, `completed`, `q`)
 
 ### Security and access
 
@@ -171,16 +183,22 @@ Release defaults are configured in `Cargo.toml`:
 
 ### Deployment tracking (GitHub Pages context)
 
-- [ ] Decide and document architecture: GitHub Pages for frontend only, backend hosted separately
+- [x] Decide and document architecture: GitHub Pages for frontend only, backend hosted separately
 - [ ] Select backend host (for example Fly.io/Render/Railway/Azure) and define environment variables
 - [ ] Add CORS config allowing the GitHub Pages frontend origin
 - [ ] Add production deployment workflow for backend (build, migrate, deploy)
 - [ ] Add frontend API base URL strategy for GitHub Pages (`production` vs `local`)
 
+### Deployment architecture
+
+- Frontend: GitHub Pages (static hosting)
+- Backend API: separate service host (required for Axum server runtime)
+- Integration: frontend calls hosted backend API via configured base URL
+
 ### Recommended implementation order
 
 - [x] 1) Persistence + migrations
 - [ ] 2) Auth middleware
-- [ ] 3) Pagination/filtering
+- [x] 3) Pagination/filtering
 - [ ] 4) Standardized error model
 - [ ] 5) Integration tests
