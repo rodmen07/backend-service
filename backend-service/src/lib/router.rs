@@ -1,3 +1,8 @@
+//! Router composition for HTTP endpoints and shared middleware.
+//!
+//! This module wires handlers into URL paths and applies cross-cutting concerns
+//! such as CORS and HTTP tracing.
+
 use axum::{
     Router,
     routing::{get, patch},
@@ -7,6 +12,13 @@ use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use crate::app_state::AppState;
 use crate::handlers::{create_task, delete_task, health, list_tasks, update_task};
 
+/// Builds the application router with routes and middleware.
+///
+/// # Parameters
+/// - `state`: Shared application state injected into handlers.
+///
+/// # Returns
+/// - Configured `Router` with task and health endpoints.
 pub fn build_router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health))

@@ -1,7 +1,24 @@
+//! Binary entrypoint for the backend tutorial application.
+//!
+//! This module bootstraps configuration from environment variables,
+//! initializes shared application state, builds the router, and starts the HTTP server.
+
 use std::{env, net::SocketAddr};
 
 use projects::{AppState, build_router};
 
+/// Starts the backend server.
+///
+/// # Parameters
+/// - None directly; configuration is read from environment variables:
+///   - `HOST` (default: `0.0.0.0`)
+///   - `PORT` (default: `3000`)
+///   - `DATABASE_URL` (default: `sqlite://app.db`)
+///
+/// # Returns
+/// - This function does not return on success because it runs the HTTP server loop.
+/// - It panics with a descriptive message if configuration parsing, DB initialization,
+///   listener binding, or server startup fails.
 #[tokio::main]
 async fn main() {
     let host = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
