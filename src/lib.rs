@@ -1,12 +1,12 @@
 use axum::{
     Json, Router,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
     routing::{get, patch},
 };
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, SqlitePool, sqlite::SqlitePoolOptions};
+use sqlx::{FromRow, QueryBuilder, Sqlite, SqlitePool, sqlite::SqlitePoolOptions};
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
 #[derive(Clone)]
@@ -30,6 +30,14 @@ pub struct CreateTaskRequest {
 pub struct UpdateTaskRequest {
     pub title: Option<String>,
     pub completed: Option<bool>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct ListTasksQuery {
+    pub limit: Option<u32>,
+    pub offset: Option<u32>,
+    pub completed: Option<bool>,
+    pub q: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -69,8 +77,44 @@ async fn health() -> impl IntoResponse {
     Json(HealthResponse { status: "ok" })
 }
 
-async fn list_tasks(State(state): State<AppState>) -> impl IntoResponse {
-    match sqlx::query_as::<_, Task>("SELECT id, title, completed FROM tasks ORDER BY id ASC")
+async fn list_tasks(
+    State(state): State<AppState>,
+    Query(params): Query<ListTasksQuery>,
+) -> impl IntoResponse {
+    let limit = params.limit.unwrap_or(50).clamp(1, 100);
+    let offset = params.offset.unwrap_or(0);
+
+    let mut query_builder = QueryBuilder::<Sqlite>::new("SELECT id, title, completed FROM tasks");
+
+    let mut has_where_clause = false;
+
+    if let Some(completed) = params.completed {
+        query_builder
+            .push(" WHERE completed = ")
+            .push_bind(completed);
+        has_where_clause = true;
+    }
+
+    if let Some(search) = params.q.as_deref().and_then(normalize_search_query) {
+        if has_where_clause {
+            query_builder.push(" AND ");
+        } else {
+            query_builder.push(" WHERE ");
+        }
+
+        query_builder
+            .push("title LIKE ")
+            .push_bind(format!("%{search}%"));
+    }
+
+    query_builder
+        .push(" ORDER BY id ASC LIMIT ")
+        .push_bind(limit)
+        .push(" OFFSET ")
+        .push_bind(offset);
+
+    match query_builder
+        .build_query_as::<Task>()
         .fetch_all(&state.pool)
         .await
     {
@@ -238,9 +282,18 @@ fn normalize_title(input: &str) -> Option<String> {
     }
 }
 
+fn normalize_search_query(input: &str) -> Option<String> {
+    let trimmed = input.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::normalize_title;
+    use super::{normalize_search_query, normalize_title};
 
     #[test]
     fn normalize_title_rejects_blank() {
@@ -250,5 +303,10 @@ mod tests {
     #[test]
     fn normalize_title_trims_content() {
         assert_eq!(normalize_title("  hello  "), Some("hello".to_string()));
+    }
+
+    #[test]
+    fn normalize_search_query_rejects_blank() {
+        assert_eq!(normalize_search_query("   \n"), None);
     }
 }
