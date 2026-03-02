@@ -177,7 +177,7 @@ Current solo-maintainer PR rules:
 
 ### Quality and developer experience
 
-- [ ] Add HTTP integration tests for full API flows
+- [x] Add HTTP integration tests for full API flows
 - [ ] Add deterministic test database setup and seed fixtures
 - [ ] Add OpenAPI/Swagger documentation for frontend integration
 
@@ -201,4 +201,4 @@ Current solo-maintainer PR rules:
 - [ ] 2) Auth middleware
 - [x] 3) Pagination/filtering
 - [ ] 4) Standardized error model
-- [ ] 5) Integration tests
+- [x] 5) Integration tests
