@@ -1,0 +1,19 @@
+{
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"name": "Debug Rust (GDB)",
+			"type": "cppdbg",
+			"request": "launch",
+			"program": "${workspaceFolder}/target/debug/projects",
+			"args": [],
+			"stopAtEntry": false,
+			"cwd": "${workspaceFolder}",
+			"environment": [],
+			"externalConsole": false,
+			"MIMode": "gdb",
+			"miDebuggerPath": "/usr/bin/gdb",
+			"preLaunchTask": "Build Rust app"
+		}
+	]
+}
