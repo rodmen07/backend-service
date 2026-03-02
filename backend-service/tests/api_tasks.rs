@@ -256,3 +256,46 @@ async fn ready_endpoint_reports_ready() {
 
     assert_eq!(payload["status"], "ready");
 }
+
+/// Verifies v1 stance: API remains accessible without authentication headers.
+#[tokio::test]
+async fn v1_allows_requests_without_auth() {
+    let test_app = test_app().await;
+
+    let request = Request::builder()
+        .method("GET")
+        .uri("/health")
+        .body(Body::empty())
+        .expect("failed to build health request");
+
+    let response = test_app
+        .app
+        .clone()
+        .oneshot(request)
+        .await
+        .expect("health request failed");
+
+    assert_eq!(response.status(), StatusCode::OK);
+}
+
+/// Verifies future auth-header shape does not break v1 while auth is not enforced.
+#[tokio::test]
+async fn v1_accepts_reserved_future_auth_header_shape() {
+    let test_app = test_app().await;
+
+    let request = Request::builder()
+        .method("GET")
+        .uri("/health")
+        .header("Authorization", "Bearer tutorial-token")
+        .body(Body::empty())
+        .expect("failed to build health request");
+
+    let response = test_app
+        .app
+        .clone()
+        .oneshot(request)
+        .await
+        .expect("health request failed");
+
+    assert_eq!(response.status(), StatusCode::OK);
+}

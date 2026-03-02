@@ -5,6 +5,8 @@
 
 #[path = "lib/app_state.rs"]
 mod app_state;
+#[path = "lib/auth.rs"]
+mod auth;
 #[path = "lib/handlers.rs"]
 mod handlers;
 #[path = "lib/models.rs"]
@@ -15,4 +17,5 @@ mod router;
 mod validation;
 
 pub use app_state::AppState;
+pub use auth::{AUTH_HEADER, AUTH_SCHEME, frozen_auth_header_format};
 pub use router::build_router;

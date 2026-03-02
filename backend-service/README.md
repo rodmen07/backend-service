@@ -73,6 +73,14 @@ All non-2xx API errors follow:
 }
 ```
 
+### Authentication stance (v1)
+
+- Authentication is **not enforced** in v1.
+- Future auth interface is frozen now to avoid client churn:
+	- Header: `Authorization`
+	- Scheme: `Bearer`
+	- Format: `Authorization: Bearer <token>`
+
 ## API examples
 
 Create task:
@@ -113,6 +121,40 @@ curl -X DELETE http://localhost:3000/api/v1/tasks/1
 
 ```bash
 cargo test
+```
+
+## Load test (k6)
+
+Load-test harness: `load/k6_tasks.js`
+
+### Baseline scenario
+
+- Creates tasks
+- Lists tasks with filters
+- Updates task completion state
+- Deletes every other created task
+
+### Default target profile
+
+- Ramp to 10 VUs over 30s
+- Sustain 20 VUs for 2m
+- Ramp down to 0 over 30s
+
+### Quality thresholds
+
+- failure rate: `< 1%`
+- p95 latency: `< 300ms`
+
+### Run
+
+```bash
+k6 run load/k6_tasks.js
+```
+
+Optional environment overrides:
+
+```bash
+BASE_URL=http://localhost:3000 TASK_TITLE_PREFIX=LoadTask k6 run load/k6_tasks.js
 ```
 
 ## Lint and format
@@ -269,16 +311,16 @@ Use this map to connect files to backend design patterns and Rust-specific pract
 
 ### Auth stance (v1 decision)
 
-- [ ] Decide and document v1 auth stance: no auth, API key, or JWT
-- [ ] If postponed, freeze future auth header contract now to avoid client churn
+- [x] Decide and document v1 auth stance: no auth, API key, or JWT
+- [x] If postponed, freeze future auth header contract now to avoid client churn
 
 ### Quality and developer experience
 
 - [x] Add HTTP integration tests for full API flows
 - [ ] Add deterministic test database setup and seed fixtures
-- [ ] Add load-test harness (k6 or vegeta)
-- [ ] Define baseline load scenario (create/list/filter/patch/delete)
-- [ ] Define target metrics (RPS, duration, p95 latency)
+- [x] Add load-test harness (k6 or vegeta)
+- [x] Define baseline load scenario (create/list/filter/patch/delete)
+- [x] Define target metrics (RPS, duration, p95 latency)
 
 ### Deployment tracking (GitHub Pages context)
 
@@ -303,5 +345,5 @@ Use this map to connect files to backend design patterns and Rust-specific pract
 - [x] 5) Pagination/filtering
 - [x] 6) Integration tests
 - [x] 7) `/health` + `/ready` operational semantics
-- [ ] 8) Auth stance decision + interface freeze
-- [ ] 9) Load-test spec and harness
+- [x] 8) Auth stance decision + interface freeze
+- [x] 9) Load-test spec and harness
