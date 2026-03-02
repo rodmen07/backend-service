@@ -3,18 +3,22 @@
 //! This module demonstrates common backend patterns in Rust:
 //! extraction, validation, SQL composition, and response shaping.
 
+use std::env;
+
 use axum::{
     Json,
     extract::{Path, Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
 };
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sqlx::{QueryBuilder, Sqlite};
 
 use crate::app_state::AppState;
 use crate::models::{
-    ApiError, CreateTaskRequest, HealthResponse, ListTasksQuery, Task, UpdateTaskRequest,
+    ApiError, CreateTaskRequest, GoalPlanRequest, GoalPlanResponse, HealthResponse, ListTasksQuery,
+    Task, UpdateTaskRequest,
 };
 use crate::validation::{TitleValidationError, normalize_search_query, validate_title};
 
@@ -189,6 +193,166 @@ pub(crate) async fn create_task(
     }
 }
 
+/// Generates a composite task plan for a long-term goal via LLM.
+///
+/// # Parameters
+/// - `payload.goal`: Long-term goal text from the user.
+///
+/// # Environment
+/// - `OPENROUTER_API_KEY`: API key used for LLM calls.
+/// - `OPENROUTER_MODEL` (optional): model name, defaults to a free-tier model.
+///
+/// # Returns
+/// - `200 OK` with `{ goal, tasks[] }`.
+/// - `400 Bad Request` when goal is empty.
+/// - `503 Service Unavailable` when API key is missing.
+/// - `502 Bad Gateway` when upstream response is invalid.
+pub(crate) async fn plan_tasks(Json(payload): Json<GoalPlanRequest>) -> impl IntoResponse {
+    let goal = payload.goal.trim();
+    if goal.is_empty() {
+        return error_response(
+            StatusCode::BAD_REQUEST,
+            "VALIDATION_GOAL_REQUIRED",
+            "goal is required",
+            None,
+        );
+    }
+
+    let api_key = match env::var("OPENROUTER_API_KEY") {
+        Ok(value) if !value.trim().is_empty() => value,
+        _ => {
+            return error_response(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "LLM_API_KEY_MISSING",
+                "LLM planning is not configured. Set OPENROUTER_API_KEY.",
+                None,
+            );
+        }
+    };
+
+    let model = env::var("OPENROUTER_MODEL")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| "meta-llama/llama-3.1-8b-instruct:free".to_string());
+
+    let client = reqwest::Client::new();
+    let user_prompt = format!(
+        "Goal: {goal}\n\nReturn 5 to 10 concrete tasks. Respond with JSON only in this exact shape: {{\"tasks\":[\"...\"]}}"
+    );
+
+    let request_body = OpenRouterRequest {
+        model,
+        messages: vec![
+            OpenRouterMessage {
+                role: "system".to_string(),
+                content: "You are a planning assistant. Break goals into practical, actionable tasks. Output valid JSON only.".to_string(),
+            },
+            OpenRouterMessage {
+                role: "user".to_string(),
+                content: user_prompt,
+            },
+        ],
+        temperature: 0.2,
+    };
+
+    let response = match client
+        .post("https://openrouter.ai/api/v1/chat/completions")
+        .header("Authorization", format!("Bearer {api_key}"))
+        .header("Content-Type", "application/json")
+        .header("HTTP-Referer", "https://rodmen07.github.io/frontend-service/")
+        .header("X-Title", "frontend-service-goal-planner")
+        .json(&request_body)
+        .send()
+        .await
+    {
+        Ok(value) => value,
+        Err(_) => {
+            return error_response(
+                StatusCode::BAD_GATEWAY,
+                "LLM_UPSTREAM_REQUEST_FAILED",
+                "failed to contact LLM provider",
+                None,
+            );
+        }
+    };
+
+    if !response.status().is_success() {
+        return error_response(
+            StatusCode::BAD_GATEWAY,
+            "LLM_UPSTREAM_RESPONSE_FAILED",
+            "LLM provider returned an error",
+            Some(json!({ "status": response.status().as_u16() })),
+        );
+    }
+
+    let payload = match response.json::<OpenRouterResponse>().await {
+        Ok(value) => value,
+        Err(_) => {
+            return error_response(
+                StatusCode::BAD_GATEWAY,
+                "LLM_RESPONSE_INVALID",
+                "invalid LLM response payload",
+                None,
+            );
+        }
+    };
+
+    let content = match payload
+        .choices
+        .first()
+        .map(|choice| choice.message.content.trim().to_string())
+    {
+        Some(value) if !value.is_empty() => value,
+        _ => {
+            return error_response(
+                StatusCode::BAD_GATEWAY,
+                "LLM_RESPONSE_EMPTY",
+                "LLM returned an empty response",
+                None,
+            );
+        }
+    };
+
+    let json_str = extract_json_payload(&content).unwrap_or(content.as_str());
+    let planned = match serde_json::from_str::<PlannedTasksPayload>(json_str) {
+        Ok(value) => value,
+        Err(_) => {
+            return error_response(
+                StatusCode::BAD_GATEWAY,
+                "LLM_RESPONSE_PARSE_FAILED",
+                "LLM output was not valid tasks JSON",
+                None,
+            );
+        }
+    };
+
+    let tasks: Vec<String> = planned
+        .tasks
+        .into_iter()
+        .map(|task| task.trim().to_string())
+        .filter(|task| !task.is_empty())
+        .take(20)
+        .collect();
+
+    if tasks.is_empty() {
+        return error_response(
+            StatusCode::BAD_GATEWAY,
+            "LLM_TASKS_EMPTY",
+            "LLM did not return any actionable tasks",
+            None,
+        );
+    }
+
+    (
+        StatusCode::OK,
+        Json(GoalPlanResponse {
+            goal: goal.to_string(),
+            tasks,
+        }),
+    )
+        .into_response()
+}
+
 /// Updates an existing task by ID.
 ///
 /// # Parameters
@@ -352,6 +516,49 @@ fn resolved_pagination(params: &ListTasksQuery) -> (u32, u32) {
     let limit = params.limit.unwrap_or(50).clamp(1, 100);
     let offset = params.offset.unwrap_or(0);
     (limit, offset)
+}
+
+#[derive(Debug, Serialize)]
+struct OpenRouterRequest {
+    model: String,
+    messages: Vec<OpenRouterMessage>,
+    temperature: f32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct OpenRouterMessage {
+    role: String,
+    content: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct OpenRouterChoice {
+    message: OpenRouterMessage,
+}
+
+#[derive(Debug, Deserialize)]
+struct OpenRouterResponse {
+    choices: Vec<OpenRouterChoice>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PlannedTasksPayload {
+    tasks: Vec<String>,
+}
+
+fn extract_json_payload(content: &str) -> Option<&str> {
+    let trimmed = content.trim();
+    if trimmed.starts_with('{') && trimmed.ends_with('}') {
+        return Some(trimmed);
+    }
+
+    let start = trimmed.find('{')?;
+    let end = trimmed.rfind('}')?;
+    if end <= start {
+        return None;
+    }
+
+    Some(&trimmed[start..=end])
 }
 
 #[cfg(test)]

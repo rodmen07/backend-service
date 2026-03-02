@@ -32,6 +32,17 @@ pub struct ListTasksQuery {
     pub q: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct GoalPlanRequest {
+    pub goal: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GoalPlanResponse {
+    pub goal: String,
+    pub tasks: Vec<String>,
+}
+
 #[derive(Debug, Serialize)]
 pub struct ApiError {
     pub code: String,

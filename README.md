@@ -41,12 +41,24 @@ HOST=127.0.0.1 PORT=8080 DATABASE_URL=sqlite://app.db cargo run
 
 `DATABASE_URL` defaults to `sqlite://app.db` and migrations run automatically at startup.
 
+### LLM goal planning configuration
+
+To enable long-term goal -> composite task planning endpoint, set:
+
+```bash
+OPENROUTER_API_KEY=your_key_here
+OPENROUTER_MODEL=meta-llama/llama-3.1-8b-instruct:free
+```
+
+`OPENROUTER_MODEL` is optional; the value above is the default free-tier model used by the service.
+
 ## API endpoints
 
 - `GET /health` -> process liveness check
 - `GET /ready` -> database readiness check
 - `GET /api/v1/tasks` -> list tasks (`limit`, `offset`, `completed`, `q`)
 - `POST /api/v1/tasks` -> create task
+- `POST /api/v1/tasks/plan` -> generate composite tasks from a long-term goal (LLM wrapper)
 - `PATCH /api/v1/tasks/{id}` -> update title/completed
 - `DELETE /api/v1/tasks/{id}` -> delete task
 
