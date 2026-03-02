@@ -1,5 +1,3 @@
-use std::sync::{Arc, Mutex};
-
 use axum::{
     Json, Router,
     extract::{Path, State},
@@ -8,22 +6,17 @@ use axum::{
     routing::{get, patch},
 };
 use serde::{Deserialize, Serialize};
+use sqlx::{FromRow, SqlitePool, sqlite::SqlitePoolOptions};
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
 #[derive(Clone)]
 pub struct AppState {
-    store: Arc<Mutex<Store>>,
+    pool: SqlitePool,
 }
 
-#[derive(Default)]
-struct Store {
-    tasks: Vec<Task>,
-    next_id: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Task {
-    pub id: u64,
+    pub id: i64,
     pub title: String,
     pub completed: bool,
 }
@@ -50,19 +43,15 @@ pub struct HealthResponse {
 }
 
 impl AppState {
-    pub fn new() -> Self {
-        Self {
-            store: Arc::new(Mutex::new(Store {
-                tasks: Vec::new(),
-                next_id: 1,
-            })),
-        }
-    }
-}
+    pub async fn from_database_url(database_url: &str) -> Result<Self, sqlx::Error> {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(5)
+            .connect(database_url)
+            .await?;
 
-impl Default for AppState {
-    fn default() -> Self {
-        Self::new()
+        sqlx::migrate!("./migrations").run(&pool).await?;
+
+        Ok(Self { pool })
     }
 }
 
@@ -81,17 +70,26 @@ async fn health() -> impl IntoResponse {
 }
 
 async fn list_tasks(State(state): State<AppState>) -> impl IntoResponse {
-    let store = state.store.lock().expect("store mutex poisoned");
-    Json(store.tasks.clone())
+    match sqlx::query_as::<_, Task>("SELECT id, title, completed FROM tasks ORDER BY id ASC")
+        .fetch_all(&state.pool)
+        .await
+    {
+        Ok(tasks) => Json(tasks).into_response(),
+        Err(_) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiMessage {
+                message: "failed to list tasks".to_string(),
+            }),
+        )
+            .into_response(),
+    }
 }
 
 async fn create_task(
     State(state): State<AppState>,
     Json(payload): Json<CreateTaskRequest>,
 ) -> impl IntoResponse {
-    let title = payload.title.trim().to_string();
-
-    if title.is_empty() {
+    let Some(title) = normalize_title(&payload.title) else {
         return (
             StatusCode::BAD_REQUEST,
             Json(ApiMessage {
@@ -99,28 +97,64 @@ async fn create_task(
             }),
         )
             .into_response();
-    }
-
-    let mut store = state.store.lock().expect("store mutex poisoned");
-    let task = Task {
-        id: store.next_id,
-        title,
-        completed: false,
     };
-    store.next_id += 1;
-    store.tasks.push(task.clone());
 
-    (StatusCode::CREATED, Json(task)).into_response()
+    let insert_result = sqlx::query("INSERT INTO tasks (title, completed) VALUES (?, ?)")
+        .bind(&title)
+        .bind(false)
+        .execute(&state.pool)
+        .await;
+
+    let Ok(result) = insert_result else {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiMessage {
+                message: "failed to create task".to_string(),
+            }),
+        )
+            .into_response();
+    };
+
+    let task_id = result.last_insert_rowid();
+    let fetch_result =
+        sqlx::query_as::<_, Task>("SELECT id, title, completed FROM tasks WHERE id = ?")
+            .bind(task_id)
+            .fetch_one(&state.pool)
+            .await;
+
+    match fetch_result {
+        Ok(task) => (StatusCode::CREATED, Json(task)).into_response(),
+        Err(_) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiMessage {
+                message: "failed to load created task".to_string(),
+            }),
+        )
+            .into_response(),
+    }
 }
 
 async fn update_task(
-    Path(id): Path<u64>,
+    Path(id): Path<i64>,
     State(state): State<AppState>,
     Json(payload): Json<UpdateTaskRequest>,
 ) -> impl IntoResponse {
-    let mut store = state.store.lock().expect("store mutex poisoned");
+    let existing = sqlx::query_as::<_, Task>("SELECT id, title, completed FROM tasks WHERE id = ?")
+        .bind(id)
+        .fetch_optional(&state.pool)
+        .await;
 
-    let Some(task) = store.tasks.iter_mut().find(|task| task.id == id) else {
+    let Ok(existing_task) = existing else {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiMessage {
+                message: "failed to update task".to_string(),
+            }),
+        )
+            .into_response();
+    };
+
+    let Some(mut task) = existing_task else {
         return (
             StatusCode::NOT_FOUND,
             Json(ApiMessage {
@@ -130,9 +164,8 @@ async fn update_task(
             .into_response();
     };
 
-    if let Some(title) = payload.title {
-        let trimmed = title.trim().to_string();
-        if trimmed.is_empty() {
+    if let Some(title) = payload.title.as_deref() {
+        let Some(trimmed) = normalize_title(title) else {
             return (
                 StatusCode::BAD_REQUEST,
                 Json(ApiMessage {
@@ -140,7 +173,7 @@ async fn update_task(
                 }),
             )
                 .into_response();
-        }
+        };
         task.title = trimmed;
     }
 
@@ -148,15 +181,42 @@ async fn update_task(
         task.completed = completed;
     }
 
-    (StatusCode::OK, Json(task.clone())).into_response()
+    let update_result = sqlx::query("UPDATE tasks SET title = ?, completed = ? WHERE id = ?")
+        .bind(&task.title)
+        .bind(task.completed)
+        .bind(task.id)
+        .execute(&state.pool)
+        .await;
+
+    match update_result {
+        Ok(_) => (StatusCode::OK, Json(task)).into_response(),
+        Err(_) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiMessage {
+                message: "failed to update task".to_string(),
+            }),
+        )
+            .into_response(),
+    }
 }
 
-async fn delete_task(Path(id): Path<u64>, State(state): State<AppState>) -> impl IntoResponse {
-    let mut store = state.store.lock().expect("store mutex poisoned");
-    let initial_len = store.tasks.len();
-    store.tasks.retain(|task| task.id != id);
+async fn delete_task(Path(id): Path<i64>, State(state): State<AppState>) -> impl IntoResponse {
+    let result = sqlx::query("DELETE FROM tasks WHERE id = ?")
+        .bind(id)
+        .execute(&state.pool)
+        .await;
 
-    if store.tasks.len() == initial_len {
+    let Ok(result) = result else {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiMessage {
+                message: "failed to delete task".to_string(),
+            }),
+        )
+            .into_response();
+    };
+
+    if result.rows_affected() == 0 {
         return (
             StatusCode::NOT_FOUND,
             Json(ApiMessage {
@@ -169,16 +229,26 @@ async fn delete_task(Path(id): Path<u64>, State(state): State<AppState>) -> impl
     StatusCode::NO_CONTENT.into_response()
 }
 
+fn normalize_title(input: &str) -> Option<String> {
+    let trimmed = input.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::AppState;
+    use super::normalize_title;
 
     #[test]
-    fn app_state_starts_empty() {
-        let state = AppState::new();
-        let store = state.store.lock().expect("store mutex poisoned");
+    fn normalize_title_rejects_blank() {
+        assert_eq!(normalize_title("   \n"), None);
+    }
 
-        assert!(store.tasks.is_empty());
-        assert_eq!(store.next_id, 1);
+    #[test]
+    fn normalize_title_trims_content() {
+        assert_eq!(normalize_title("  hello  "), Some("hello".to_string()));
     }
 }

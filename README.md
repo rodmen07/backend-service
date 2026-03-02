@@ -33,11 +33,13 @@ cargo run --release
 
 The server starts on `http://0.0.0.0:3000` by default.
 
-Override host/port with environment variables:
+Override host/port/database with environment variables:
 
 ```bash
-HOST=127.0.0.1 PORT=8080 cargo run
+HOST=127.0.0.1 PORT=8080 DATABASE_URL=sqlite://app.db cargo run
 ```
+
+`DATABASE_URL` defaults to `sqlite://app.db` and migrations run automatically at startup.
 
 ## API endpoints
 
@@ -131,3 +133,54 @@ Release defaults are configured in `Cargo.toml`:
 1. Open the Run and Debug view.
 2. Choose **Debug Rust (GDB)**.
 3. Start debugging.
+
+## Roadmap TODOs
+
+### Core backend
+
+- [x] Add SQLite persistence with `sqlx` (replace in-memory store)
+- [x] Add database migrations and startup migration checks
+- [ ] Add strong request validation (required fields, length constraints)
+- [ ] Standardize API error responses (`code`, `message`, optional `details`)
+- [ ] Add pagination/filtering/sorting for task lists (`limit`, `offset`, `completed`, `q`)
+
+### Security and access
+
+- [ ] Add authentication middleware (JWT or API key)
+- [ ] Add user ownership rules for task access
+- [ ] Tighten CORS by environment (dev vs production origins)
+
+### Reliability and operations
+
+- [ ] Add structured logging with request IDs and latency metrics
+- [ ] Split health checks into `/health` and `/ready` (DB readiness)
+- [ ] Add rate limiting on write endpoints
+
+### Product logic
+
+- [ ] Add due dates, priorities, tags, and richer task status transitions
+- [ ] Add audit fields (`created_at`, `updated_at`, `deleted_at`)
+- [ ] Add soft delete semantics
+- [ ] Add idempotency support for `POST` operations
+
+### Quality and developer experience
+
+- [ ] Add HTTP integration tests for full API flows
+- [ ] Add deterministic test database setup and seed fixtures
+- [ ] Add OpenAPI/Swagger documentation for frontend integration
+
+### Deployment tracking (GitHub Pages context)
+
+- [ ] Decide and document architecture: GitHub Pages for frontend only, backend hosted separately
+- [ ] Select backend host (for example Fly.io/Render/Railway/Azure) and define environment variables
+- [ ] Add CORS config allowing the GitHub Pages frontend origin
+- [ ] Add production deployment workflow for backend (build, migrate, deploy)
+- [ ] Add frontend API base URL strategy for GitHub Pages (`production` vs `local`)
+
+### Recommended implementation order
+
+- [x] 1) Persistence + migrations
+- [ ] 2) Auth middleware
+- [ ] 3) Pagination/filtering
+- [ ] 4) Standardized error model
+- [ ] 5) Integration tests
