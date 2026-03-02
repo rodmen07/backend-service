@@ -21,6 +21,7 @@ use crate::handlers::{create_task, delete_task, health, list_tasks, ready, updat
 /// - Configured `Router` with task, health, and readiness endpoints.
 pub fn build_router(state: AppState) -> Router {
     Router::new()
+        .route("/", get(health))
         .route("/health", get(health))
         .route("/ready", get(ready))
         .route("/api/v1/tasks", get(list_tasks).post(create_task))
