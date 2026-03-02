@@ -7,15 +7,16 @@ use axum::{
     Json,
     extract::{Path, Query, State},
     http::StatusCode,
-    response::IntoResponse,
+    response::{IntoResponse, Response},
 };
+use serde_json::{Value, json};
 use sqlx::{QueryBuilder, Sqlite};
 
 use crate::app_state::AppState;
 use crate::models::{
-    ApiMessage, CreateTaskRequest, HealthResponse, ListTasksQuery, Task, UpdateTaskRequest,
+    ApiError, CreateTaskRequest, HealthResponse, ListTasksQuery, Task, UpdateTaskRequest,
 };
-use crate::validation::{normalize_search_query, normalize_title};
+use crate::validation::{TitleValidationError, normalize_search_query, validate_title};
 
 /// Returns a lightweight server health response.
 ///
@@ -82,13 +83,12 @@ pub(crate) async fn list_tasks(
         .await
     {
         Ok(tasks) => Json(tasks).into_response(),
-        Err(_) => (
+        Err(_) => error_response(
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiMessage {
-                message: "failed to list tasks".to_string(),
-            }),
-        )
-            .into_response(),
+            "DB_LIST_TASKS_FAILED",
+            "failed to list tasks",
+            None,
+        ),
     }
 }
 
@@ -100,20 +100,30 @@ pub(crate) async fn list_tasks(
 ///
 /// # Returns
 /// - `201 Created` with the newly created task JSON.
-/// - `400 Bad Request` when title is missing/blank.
+/// - `400 Bad Request` when title is missing/blank or exceeds max length.
 /// - `500 Internal Server Error` when insert/fetch fails.
 pub(crate) async fn create_task(
     State(state): State<AppState>,
     Json(payload): Json<CreateTaskRequest>,
 ) -> impl IntoResponse {
-    let Some(title) = normalize_title(&payload.title) else {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(ApiMessage {
-                message: "title is required".to_string(),
-            }),
-        )
-            .into_response();
+    let title = match validate_title(&payload.title) {
+        Ok(title) => title,
+        Err(TitleValidationError::Empty) => {
+            return error_response(
+                StatusCode::BAD_REQUEST,
+                "VALIDATION_TITLE_REQUIRED",
+                "title is required",
+                None,
+            );
+        }
+        Err(TitleValidationError::TooLong { max, actual }) => {
+            return error_response(
+                StatusCode::BAD_REQUEST,
+                "VALIDATION_TITLE_TOO_LONG",
+                "title exceeds maximum length",
+                Some(json!({ "max": max, "actual": actual })),
+            );
+        }
     };
 
     let insert_result = sqlx::query("INSERT INTO tasks (title, completed) VALUES (?, ?)")
@@ -123,13 +133,12 @@ pub(crate) async fn create_task(
         .await;
 
     let Ok(result) = insert_result else {
-        return (
+        return error_response(
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiMessage {
-                message: "failed to create task".to_string(),
-            }),
-        )
-            .into_response();
+            "DB_CREATE_TASK_FAILED",
+            "failed to create task",
+            None,
+        );
     };
 
     let task_id = result.last_insert_rowid();
@@ -141,13 +150,12 @@ pub(crate) async fn create_task(
 
     match fetch_result {
         Ok(task) => (StatusCode::CREATED, Json(task)).into_response(),
-        Err(_) => (
+        Err(_) => error_response(
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiMessage {
-                message: "failed to load created task".to_string(),
-            }),
-        )
-            .into_response(),
+            "DB_FETCH_CREATED_TASK_FAILED",
+            "failed to load created task",
+            None,
+        ),
     }
 }
 
@@ -160,7 +168,7 @@ pub(crate) async fn create_task(
 ///
 /// # Returns
 /// - `200 OK` with updated task JSON.
-/// - `400 Bad Request` when provided title is blank.
+/// - `400 Bad Request` when provided title is blank or exceeds max length.
 /// - `404 Not Found` when task ID does not exist.
 /// - `500 Internal Server Error` on DB failures.
 pub(crate) async fn update_task(
@@ -174,34 +182,42 @@ pub(crate) async fn update_task(
         .await;
 
     let Ok(existing_task) = existing else {
-        return (
+        return error_response(
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiMessage {
-                message: "failed to update task".to_string(),
-            }),
-        )
-            .into_response();
+            "DB_LOAD_TASK_FOR_UPDATE_FAILED",
+            "failed to update task",
+            None,
+        );
     };
 
     let Some(mut task) = existing_task else {
-        return (
+        return error_response(
             StatusCode::NOT_FOUND,
-            Json(ApiMessage {
-                message: "task not found".to_string(),
-            }),
-        )
-            .into_response();
+            "TASK_NOT_FOUND",
+            "task not found",
+            None,
+        );
     };
 
     if let Some(title) = payload.title.as_deref() {
-        let Some(trimmed) = normalize_title(title) else {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(ApiMessage {
-                    message: "title cannot be empty".to_string(),
-                }),
-            )
-                .into_response();
+        let trimmed = match validate_title(title) {
+            Ok(valid_title) => valid_title,
+            Err(TitleValidationError::Empty) => {
+                return error_response(
+                    StatusCode::BAD_REQUEST,
+                    "VALIDATION_TITLE_REQUIRED",
+                    "title cannot be empty",
+                    None,
+                );
+            }
+            Err(TitleValidationError::TooLong { max, actual }) => {
+                return error_response(
+                    StatusCode::BAD_REQUEST,
+                    "VALIDATION_TITLE_TOO_LONG",
+                    "title exceeds maximum length",
+                    Some(json!({ "max": max, "actual": actual })),
+                );
+            }
         };
         task.title = trimmed;
     }
@@ -219,13 +235,12 @@ pub(crate) async fn update_task(
 
     match update_result {
         Ok(_) => (StatusCode::OK, Json(task)).into_response(),
-        Err(_) => (
+        Err(_) => error_response(
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiMessage {
-                message: "failed to update task".to_string(),
-            }),
-        )
-            .into_response(),
+            "DB_UPDATE_TASK_FAILED",
+            "failed to update task",
+            None,
+        ),
     }
 }
 
@@ -249,26 +264,51 @@ pub(crate) async fn delete_task(
         .await;
 
     let Ok(result) = result else {
-        return (
+        return error_response(
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiMessage {
-                message: "failed to delete task".to_string(),
-            }),
-        )
-            .into_response();
+            "DB_DELETE_TASK_FAILED",
+            "failed to delete task",
+            None,
+        );
     };
 
     if result.rows_affected() == 0 {
-        return (
+        return error_response(
             StatusCode::NOT_FOUND,
-            Json(ApiMessage {
-                message: "task not found".to_string(),
-            }),
-        )
-            .into_response();
+            "TASK_NOT_FOUND",
+            "task not found",
+            None,
+        );
     }
 
     StatusCode::NO_CONTENT.into_response()
+}
+
+/// Builds a standardized JSON error envelope and converts it into an HTTP response.
+///
+/// # Parameters
+/// - `status`: HTTP status code.
+/// - `code`: Stable machine-readable error code.
+/// - `message`: Human-readable message.
+/// - `details`: Optional structured details object.
+///
+/// # Returns
+/// - `Response` containing the status code and JSON body.
+fn error_response(
+    status: StatusCode,
+    code: &str,
+    message: &str,
+    details: Option<Value>,
+) -> Response {
+    (
+        status,
+        Json(ApiError {
+            code: code.to_string(),
+            message: message.to_string(),
+            details,
+        }),
+    )
+        .into_response()
 }
 
 /// Resolves pagination defaults and safety bounds.
