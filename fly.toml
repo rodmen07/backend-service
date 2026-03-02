@@ -8,6 +8,7 @@ primary_region = "iad"
   HOST = "0.0.0.0"
   PORT = "8080"
   DATABASE_URL = "sqlite:///data/app.db"
+  AI_ORCHESTRATOR_PLAN_URL = "https://ai-orchestrator-service-rodmen07.fly.dev/plan"
 
 [[mounts]]
   source = "data"
