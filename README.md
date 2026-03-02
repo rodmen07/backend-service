@@ -43,11 +43,17 @@ HOST=127.0.0.1 PORT=8080 DATABASE_URL=sqlite://app.db cargo run
 
 ## API endpoints
 
-- `GET /health` -> health check
+- `GET /health` -> process liveness check
+- `GET /ready` -> database readiness check
 - `GET /api/v1/tasks` -> list tasks (`limit`, `offset`, `completed`, `q`)
 - `POST /api/v1/tasks` -> create task
 - `PATCH /api/v1/tasks/{id}` -> update title/completed
 - `DELETE /api/v1/tasks/{id}` -> delete task
+
+### Health/readiness semantics
+
+- `/health`: service process is up and can respond to HTTP requests.
+- `/ready`: database connectivity check succeeded (`SELECT 1`) and service is ready for traffic.
 
 ### Validation invariants (v1)
 
@@ -250,9 +256,9 @@ Use this map to connect files to backend design patterns and Rust-specific pract
 ### Reliability and operations
 
 - [ ] Add structured logging with request IDs and latency metrics
-- [ ] Split health checks into `/health` and `/ready` (DB readiness)
+- [x] Split health checks into `/health` and `/ready` (DB readiness)
 - [ ] Add rate limiting on write endpoints
-- [ ] Define `/health` semantics (process alive) and `/ready` semantics (DB + migrations)
+- [x] Define `/health` semantics (process alive) and `/ready` semantics (DB + migrations)
 
 ### Product logic
 
@@ -296,6 +302,6 @@ Use this map to connect files to backend design patterns and Rust-specific pract
 - [x] 4) Validation hardening (including invariant enforcement)
 - [x] 5) Pagination/filtering
 - [x] 6) Integration tests
-- [ ] 7) `/health` + `/ready` operational semantics
+- [x] 7) `/health` + `/ready` operational semantics
 - [ ] 8) Auth stance decision + interface freeze
 - [ ] 9) Load-test spec and harness

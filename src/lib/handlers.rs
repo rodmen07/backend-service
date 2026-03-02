@@ -25,8 +25,38 @@ use crate::validation::{TitleValidationError, normalize_search_query, validate_t
 ///
 /// # Returns
 /// - `200 OK` with `{ "status": "ok" }` JSON payload.
+///
+/// # Semantics
+/// - Liveness only: this endpoint indicates process availability.
 pub(crate) async fn health() -> impl IntoResponse {
     Json(HealthResponse { status: "ok" })
+}
+
+/// Returns readiness status by checking database availability.
+///
+/// # Parameters
+/// - `state`: Shared app state containing DB pool.
+///
+/// # Returns
+/// - `200 OK` with `{ "status": "ready" }` when DB query succeeds.
+/// - `503 Service Unavailable` with standard error envelope when DB check fails.
+///
+/// # Semantics
+/// - Readiness: indicates service can process requests requiring the database.
+pub(crate) async fn ready(State(state): State<AppState>) -> impl IntoResponse {
+    let readiness_check = sqlx::query_scalar::<_, i32>("SELECT 1")
+        .fetch_one(&state.pool)
+        .await;
+
+    match readiness_check {
+        Ok(_) => Json(HealthResponse { status: "ready" }).into_response(),
+        Err(_) => error_response(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "DB_NOT_READY",
+            "database is not ready",
+            None,
+        ),
+    }
 }
 
 /// Lists tasks with optional pagination and filtering.
