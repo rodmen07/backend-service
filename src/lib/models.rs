@@ -1,3 +1,7 @@
+//! Request/response DTOs and domain models for the task API.
+//!
+//! These types define the contract between clients, handlers, and the database layer.
+
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 

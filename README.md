@@ -140,6 +140,49 @@ Current solo-maintainer PR rules:
 - PRs and required CI checks are enforced on `main`
 - Required approvals are set to `0` (self-review limitation on GitHub)
 
+## How to read this tutorial codebase
+
+Use this map to connect files to backend design patterns and Rust-specific practices.
+
+- `src/main.rs`
+	- Pattern: Composition root / application bootstrap
+	- Rust nuance: explicit env parsing, typed socket address, async runtime startup
+- `src/lib.rs`
+	- Pattern: Facade / public API boundary
+	- Rust nuance: re-exporting stable crate surface while hiding internal module layout
+- `src/lib/app_state.rs`
+	- Pattern: Shared state container + dependency injection
+	- Rust nuance: cloned `SqlitePool` handle and async DB initialization with migrations
+- `src/lib/router.rs`
+	- Pattern: Router composition and middleware pipeline
+	- Rust nuance: Axum route typing and middleware layering (`CORS`, tracing)
+- `src/lib/handlers.rs`
+	- Pattern: Controller/handler layer
+	- Rust nuance: extractor-based input handling, `IntoResponse` return polymorphism
+- `src/lib/models.rs`
+	- Pattern: DTO/domain schema boundary
+	- Rust nuance: `serde` + `sqlx::FromRow` derives for compile-time type alignment
+- `src/lib/validation.rs`
+	- Pattern: Input normalization/validation utility layer
+	- Rust nuance: `Option<T>`-driven validation flow for ergonomic error branching
+- `migrations/`
+	- Pattern: Schema evolution via versioned migrations
+	- Rust nuance: startup migration execution through `sqlx::migrate!`
+- `tests/api_tasks.rs`
+	- Pattern: Black-box HTTP integration testing
+	- Rust nuance: per-test SQLite isolation and one-shot router execution (`tower::ServiceExt`)
+
+### Suggested reading order
+
+- [ ] 1) Start with `src/main.rs` to understand runtime/bootstrap flow
+- [ ] 2) Read `src/lib.rs` to see the facade and module boundaries
+- [ ] 3) Review `src/lib/models.rs` for request/response and DB row shapes
+- [ ] 4) Read `src/lib/app_state.rs` to understand DB lifecycle and migrations
+- [ ] 5) Study `src/lib/router.rs` for route wiring and middleware composition
+- [ ] 6) Walk through `src/lib/handlers.rs` for endpoint logic and persistence operations
+- [ ] 7) Check `src/lib/validation.rs` for normalization and guard patterns
+- [ ] 8) Inspect `tests/api_tasks.rs` to see end-to-end behavior validation
+
 ## Debug in VS Code
 
 1. Open the Run and Debug view.

@@ -1,23 +1,50 @@
+//! Integration tests for the task API routes.
+//!
+//! These tests exercise request/response behavior against a real SQLite database
+//! and the fully wired Axum router.
+
 use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
 use projects::{AppState, build_router};
 use serde_json::Value;
-use std::{path::PathBuf, time::{SystemTime, UNIX_EPOCH}};
+use std::{
+    path::PathBuf,
+    time::{SystemTime, UNIX_EPOCH},
+};
 use tower::ServiceExt;
 
+/// Holds test resources for one integration test case.
+///
+/// # Fields
+/// - `app`: Configured router used for one-shot requests.
+/// - `database_path`: On-disk SQLite file path that gets cleaned up on drop.
 struct TestApp {
     app: axum::Router,
     database_path: PathBuf,
 }
 
 impl Drop for TestApp {
+    /// Cleans up the temporary SQLite file once test resources are dropped.
+    ///
+    /// # Parameters
+    /// - `self`: Mutable reference to the test fixture.
+    ///
+    /// # Returns
+    /// - No return value.
     fn drop(&mut self) {
         let _ = std::fs::remove_file(&self.database_path);
     }
 }
 
+/// Builds a test application with an isolated SQLite database file.
+///
+/// # Parameters
+/// - None.
+///
+/// # Returns
+/// - `TestApp` containing a configured router and unique DB path.
 async fn test_app() -> TestApp {
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -37,6 +64,7 @@ async fn test_app() -> TestApp {
     }
 }
 
+/// Verifies that creating a task makes it available in subsequent list calls.
 #[tokio::test]
 async fn create_task_then_list_tasks() {
     let test_app = test_app().await;
@@ -84,6 +112,7 @@ async fn create_task_then_list_tasks() {
     assert_eq!(tasks[0]["completed"], false);
 }
 
+/// Verifies list endpoint filtering and pagination behavior.
 #[tokio::test]
 async fn list_tasks_respects_filters_and_pagination() {
     let test_app = test_app().await;
