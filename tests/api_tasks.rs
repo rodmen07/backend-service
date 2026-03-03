@@ -110,6 +110,7 @@ async fn create_task_then_list_tasks() {
     assert_eq!(tasks.len(), 1);
     assert_eq!(tasks[0]["title"], "Write integration tests");
     assert_eq!(tasks[0]["completed"], false);
+    assert_eq!(tasks[0]["difficulty"], 1);
 }
 
 /// Verifies list endpoint filtering and pagination behavior.
@@ -226,6 +227,89 @@ async fn create_task_rejects_too_long_title_with_details() {
     assert_eq!(payload["code"], "VALIDATION_TITLE_TOO_LONG");
     assert_eq!(payload["details"]["max"], 120);
     assert_eq!(payload["details"]["actual"], 121);
+}
+
+/// Verifies difficulty must be between 1 and 5.
+#[tokio::test]
+async fn create_task_rejects_out_of_range_difficulty() {
+    let test_app = test_app().await;
+
+    let create_request = Request::builder()
+        .method("POST")
+        .uri("/api/v1/tasks")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"title":"Calibrate forge","difficulty":7}"#))
+        .expect("failed to build create request");
+
+    let create_response = test_app
+        .app
+        .clone()
+        .oneshot(create_request)
+        .await
+        .expect("create request failed");
+
+    assert_eq!(create_response.status(), StatusCode::BAD_REQUEST);
+
+    let body_bytes = to_bytes(create_response.into_body(), usize::MAX)
+        .await
+        .expect("failed reading response body");
+    let payload: Value =
+        serde_json::from_slice(&body_bytes).expect("failed to parse error response body");
+
+    assert_eq!(payload["code"], "VALIDATION_DIFFICULTY_OUT_OF_RANGE");
+}
+
+/// Verifies task difficulty updates persist and round-trip through API responses.
+#[tokio::test]
+async fn update_task_allows_difficulty_changes() {
+    let test_app = test_app().await;
+
+    let create_request = Request::builder()
+        .method("POST")
+        .uri("/api/v1/tasks")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"title":"Temper blade"}"#))
+        .expect("failed to build create request");
+
+    let create_response = test_app
+        .app
+        .clone()
+        .oneshot(create_request)
+        .await
+        .expect("create request failed");
+
+    assert_eq!(create_response.status(), StatusCode::CREATED);
+
+    let body_bytes = to_bytes(create_response.into_body(), usize::MAX)
+        .await
+        .expect("failed reading create response body");
+    let created_payload: Value =
+        serde_json::from_slice(&body_bytes).expect("failed to parse create response body");
+    let task_id = created_payload["id"].as_i64().expect("task id missing");
+
+    let patch_request = Request::builder()
+        .method("PATCH")
+        .uri(format!("/api/v1/tasks/{task_id}"))
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"difficulty":5}"#))
+        .expect("failed to build patch request");
+
+    let patch_response = test_app
+        .app
+        .clone()
+        .oneshot(patch_request)
+        .await
+        .expect("patch request failed");
+
+    assert_eq!(patch_response.status(), StatusCode::OK);
+
+    let patch_body = to_bytes(patch_response.into_body(), usize::MAX)
+        .await
+        .expect("failed reading patch response body");
+    let patched_payload: Value =
+        serde_json::from_slice(&patch_body).expect("failed to parse patch response body");
+
+    assert_eq!(patched_payload["difficulty"], 5);
 }
 
 /// Verifies readiness endpoint reports ready when DB is reachable.

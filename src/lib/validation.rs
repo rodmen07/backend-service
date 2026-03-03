@@ -2,12 +2,19 @@
 
 /// Maximum allowed task title length in Unicode scalar values.
 pub(crate) const TITLE_MAX_LENGTH: usize = 120;
+pub(crate) const TASK_DIFFICULTY_MIN: i64 = 1;
+pub(crate) const TASK_DIFFICULTY_MAX: i64 = 5;
 
 /// Represents task-title validation failures.
 #[derive(Debug, PartialEq)]
 pub(crate) enum TitleValidationError {
     Empty,
     TooLong { max: usize, actual: usize },
+}
+
+#[derive(Debug, PartialEq)]
+pub(crate) enum DifficultyValidationError {
+    OutOfRange { min: i64, max: i64, actual: i64 },
 }
 
 /// Validates and normalizes a task title by trimming whitespace.
@@ -53,9 +60,24 @@ pub(crate) fn normalize_search_query(input: &str) -> Option<String> {
     }
 }
 
+pub(crate) fn validate_difficulty(input: i64) -> Result<i64, DifficultyValidationError> {
+    if (TASK_DIFFICULTY_MIN..=TASK_DIFFICULTY_MAX).contains(&input) {
+        Ok(input)
+    } else {
+        Err(DifficultyValidationError::OutOfRange {
+            min: TASK_DIFFICULTY_MIN,
+            max: TASK_DIFFICULTY_MAX,
+            actual: input,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{TITLE_MAX_LENGTH, TitleValidationError, normalize_search_query, validate_title};
+    use super::{
+        DifficultyValidationError, TASK_DIFFICULTY_MAX, TASK_DIFFICULTY_MIN, TITLE_MAX_LENGTH,
+        TitleValidationError, normalize_search_query, validate_difficulty, validate_title,
+    };
 
     /// Ensures blank/whitespace-only titles are rejected.
     #[test]
@@ -89,5 +111,23 @@ mod tests {
     #[test]
     fn normalize_search_query_rejects_blank() {
         assert_eq!(normalize_search_query("   \n"), None);
+    }
+
+    #[test]
+    fn validate_difficulty_accepts_range() {
+        assert_eq!(validate_difficulty(TASK_DIFFICULTY_MIN), Ok(TASK_DIFFICULTY_MIN));
+        assert_eq!(validate_difficulty(TASK_DIFFICULTY_MAX), Ok(TASK_DIFFICULTY_MAX));
+    }
+
+    #[test]
+    fn validate_difficulty_rejects_out_of_range() {
+        assert!(matches!(
+            validate_difficulty(0),
+            Err(DifficultyValidationError::OutOfRange {
+                min: TASK_DIFFICULTY_MIN,
+                max: TASK_DIFFICULTY_MAX,
+                actual: 0
+            })
+        ));
     }
 }

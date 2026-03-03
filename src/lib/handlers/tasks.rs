@@ -8,10 +8,12 @@ use sqlx::{QueryBuilder, Sqlite};
 
 use crate::app_state::AppState;
 use crate::models::{CreateTaskRequest, ListTasksQuery, Task, UpdateTaskRequest};
-use crate::validation::validate_title;
+use crate::validation::{validate_difficulty, validate_title};
 
 use super::shared::{error_response, resolved_pagination};
-use super::tasks_support::{apply_list_task_filters, title_validation_error_response};
+use super::tasks_support::{
+    apply_list_task_filters, difficulty_validation_error_response, title_validation_error_response,
+};
 
 pub(crate) async fn list_tasks(
     State(state): State<AppState>,
@@ -19,7 +21,8 @@ pub(crate) async fn list_tasks(
 ) -> impl IntoResponse {
     let (limit, offset) = resolved_pagination(&params);
 
-    let mut query_builder = QueryBuilder::<Sqlite>::new("SELECT id, title, completed FROM tasks");
+    let mut query_builder =
+        QueryBuilder::<Sqlite>::new("SELECT id, title, completed, difficulty FROM tasks");
     apply_list_task_filters(&mut query_builder, &params);
 
     query_builder
@@ -52,9 +55,16 @@ pub(crate) async fn create_task(
         Err(error) => return title_validation_error_response(error, "title is required"),
     };
 
-    let insert_result = sqlx::query("INSERT INTO tasks (title, completed) VALUES (?, ?)")
+    let difficulty = match validate_difficulty(payload.difficulty.unwrap_or(1)) {
+        Ok(value) => value,
+        Err(error) => return difficulty_validation_error_response(error),
+    };
+
+    let insert_result =
+        sqlx::query("INSERT INTO tasks (title, completed, difficulty) VALUES (?, ?, ?)")
         .bind(&title)
         .bind(false)
+        .bind(difficulty)
         .execute(&state.pool)
         .await;
 
@@ -68,11 +78,12 @@ pub(crate) async fn create_task(
     };
 
     let task_id = result.last_insert_rowid();
-    let fetch_result =
-        sqlx::query_as::<_, Task>("SELECT id, title, completed FROM tasks WHERE id = ?")
-            .bind(task_id)
-            .fetch_one(&state.pool)
-            .await;
+    let fetch_result = sqlx::query_as::<_, Task>(
+        "SELECT id, title, completed, difficulty FROM tasks WHERE id = ?",
+    )
+    .bind(task_id)
+    .fetch_one(&state.pool)
+    .await;
 
     match fetch_result {
         Ok(task) => (StatusCode::CREATED, Json(task)).into_response(),
@@ -90,7 +101,8 @@ pub(crate) async fn update_task(
     State(state): State<AppState>,
     Json(payload): Json<UpdateTaskRequest>,
 ) -> impl IntoResponse {
-    let existing = sqlx::query_as::<_, Task>("SELECT id, title, completed FROM tasks WHERE id = ?")
+    let existing =
+        sqlx::query_as::<_, Task>("SELECT id, title, completed, difficulty FROM tasks WHERE id = ?")
         .bind(id)
         .fetch_optional(&state.pool)
         .await;
@@ -125,9 +137,18 @@ pub(crate) async fn update_task(
         task.completed = completed;
     }
 
-    let update_result = sqlx::query("UPDATE tasks SET title = ?, completed = ? WHERE id = ?")
+    if let Some(difficulty) = payload.difficulty {
+        task.difficulty = match validate_difficulty(difficulty) {
+            Ok(value) => value,
+            Err(error) => return difficulty_validation_error_response(error),
+        };
+    }
+
+    let update_result =
+        sqlx::query("UPDATE tasks SET title = ?, completed = ?, difficulty = ? WHERE id = ?")
         .bind(&task.title)
         .bind(task.completed)
+        .bind(task.difficulty)
         .bind(task.id)
         .execute(&state.pool)
         .await;

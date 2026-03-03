@@ -4,7 +4,9 @@ use serde_json::json;
 use sqlx::{QueryBuilder, Sqlite};
 
 use crate::models::ListTasksQuery;
-use crate::validation::{TitleValidationError, normalize_search_query};
+use crate::validation::{
+    DifficultyValidationError, TitleValidationError, normalize_search_query,
+};
 
 use super::shared::error_response;
 
@@ -50,6 +52,17 @@ pub(crate) fn title_validation_error_response(
             "VALIDATION_TITLE_TOO_LONG",
             "title exceeds maximum length",
             Some(json!({ "max": max, "actual": actual })),
+        ),
+    }
+}
+
+pub(crate) fn difficulty_validation_error_response(error: DifficultyValidationError) -> Response {
+    match error {
+        DifficultyValidationError::OutOfRange { min, max, actual } => error_response(
+            StatusCode::BAD_REQUEST,
+            "VALIDATION_DIFFICULTY_OUT_OF_RANGE",
+            "difficulty must be between 1 and 5",
+            Some(json!({ "min": min, "max": max, "actual": actual })),
         ),
     }
 }

@@ -11,17 +11,20 @@ pub struct Task {
     pub id: i64,
     pub title: String,
     pub completed: bool,
+    pub difficulty: i64,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct CreateTaskRequest {
     pub title: String,
+    pub difficulty: Option<i64>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateTaskRequest {
     pub title: Option<String>,
     pub completed: Option<bool>,
+    pub difficulty: Option<i64>,
 }
 
 #[derive(Debug, Deserialize, Default)]
