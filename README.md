@@ -74,6 +74,9 @@ Provider credentials are configured in `ai-orchestrator-service` (`OPENROUTER_AP
 - `POST /api/v1/tasks/plan` -> generate composite tasks from a long-term goal (LLM wrapper)
 - `PATCH /api/v1/tasks/{id}` -> update title/completed
 - `DELETE /api/v1/tasks/{id}` -> delete task
+- `GET /api/v1/admin/metrics` -> admin metrics snapshot
+- `GET /api/v1/admin/requests` -> recent API request logs
+- `GET /api/v1/admin/users` -> aggregated user activity
 
 ### Health/readiness semantics
 
@@ -98,13 +101,32 @@ All non-2xx API errors follow:
 }
 ```
 
-### Authentication stance (v1)
+### Authentication & admin access
 
-- Authentication is **not enforced** in v1.
-- Future auth interface is frozen now to avoid client churn:
+- Auth enforcement is controlled by `AUTH_ENFORCED`.
+- Auth header contract:
 	- Header: `Authorization`
 	- Scheme: `Bearer`
 	- Format: `Authorization: Bearer <token>`
+- Admin endpoints require role `admin` in JWT claims when auth enforcement is enabled.
+
+### Request tracing and user history
+
+- Backend persists API request audits in SQLite table `api_request_logs`.
+- Each row captures: timestamp, subject, method, path, status code, duration, user agent.
+- Use admin APIs for observability:
+	- `GET /api/v1/admin/requests?limit=50&offset=0`
+	- `GET /api/v1/admin/users?limit=50&offset=0`
+
+### Viewing current database data
+
+With local SQLite (`app.db`) you can inspect directly:
+
+```bash
+sqlite3 app.db ".tables"
+sqlite3 app.db "SELECT id,title,completed,difficulty,goal FROM tasks ORDER BY id DESC LIMIT 20;"
+sqlite3 app.db "SELECT id,occurred_at,subject,method,path,status_code,duration_ms FROM api_request_logs ORDER BY id DESC LIMIT 20;"
+```
 
 ## API examples
 

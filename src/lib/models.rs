@@ -61,3 +61,38 @@ pub struct ApiError {
 pub struct HealthResponse {
     pub status: &'static str,
 }
+
+#[derive(Debug, Serialize)]
+pub struct AdminMetricsResponse {
+    pub total_tasks: i64,
+    pub completed_tasks: i64,
+    pub pending_tasks: i64,
+    pub total_requests: i64,
+    pub unique_subjects: i64,
+}
+
+#[derive(Debug, Serialize, FromRow)]
+pub struct AdminRequestLog {
+    pub id: i64,
+    pub occurred_at: String,
+    pub subject: Option<String>,
+    pub method: String,
+    pub path: String,
+    pub status_code: i64,
+    pub duration_ms: i64,
+    pub user_agent: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct AdminListQuery {
+    pub limit: Option<u32>,
+    pub offset: Option<u32>,
+}
+
+#[derive(Debug, Serialize, FromRow)]
+pub struct AdminUserActivity {
+    pub subject: String,
+    pub request_count: i64,
+    pub first_seen_at: String,
+    pub last_seen_at: String,
+}

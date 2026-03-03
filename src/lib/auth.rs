@@ -14,6 +14,14 @@ pub const AUTH_SCHEME: &str = "Bearer";
 #[derive(Debug, Deserialize, Clone)]
 pub struct AuthClaims {
     pub sub: String,
+    #[serde(default)]
+    pub roles: Vec<String>,
+}
+
+impl AuthClaims {
+    pub fn has_role(&self, role: &str) -> bool {
+        self.roles.iter().any(|candidate| candidate.eq_ignore_ascii_case(role))
+    }
 }
 
 #[derive(Debug)]
