@@ -4,14 +4,14 @@ use axum::{
     extract::{Path, Query, State},
     response::IntoResponse,
 };
-use serde_json::json;
 use sqlx::{QueryBuilder, Sqlite};
 
 use crate::app_state::AppState;
 use crate::models::{CreateTaskRequest, ListTasksQuery, Task, UpdateTaskRequest};
-use crate::validation::{TitleValidationError, normalize_search_query, validate_title};
+use crate::validation::validate_title;
 
 use super::shared::{error_response, resolved_pagination};
+use super::tasks_support::{apply_list_task_filters, title_validation_error_response};
 
 pub(crate) async fn list_tasks(
     State(state): State<AppState>,
@@ -20,27 +20,7 @@ pub(crate) async fn list_tasks(
     let (limit, offset) = resolved_pagination(&params);
 
     let mut query_builder = QueryBuilder::<Sqlite>::new("SELECT id, title, completed FROM tasks");
-
-    let mut has_where_clause = false;
-
-    if let Some(completed) = params.completed {
-        query_builder
-            .push(" WHERE completed = ")
-            .push_bind(completed);
-        has_where_clause = true;
-    }
-
-    if let Some(search) = params.q.as_deref().and_then(normalize_search_query) {
-        if has_where_clause {
-            query_builder.push(" AND ");
-        } else {
-            query_builder.push(" WHERE ");
-        }
-
-        query_builder
-            .push("title LIKE ")
-            .push_bind(format!("%{search}%"));
-    }
+    apply_list_task_filters(&mut query_builder, &params);
 
     query_builder
         .push(" ORDER BY id ASC LIMIT ")
@@ -69,22 +49,7 @@ pub(crate) async fn create_task(
 ) -> impl IntoResponse {
     let title = match validate_title(&payload.title) {
         Ok(title) => title,
-        Err(TitleValidationError::Empty) => {
-            return error_response(
-                StatusCode::BAD_REQUEST,
-                "VALIDATION_TITLE_REQUIRED",
-                "title is required",
-                None,
-            );
-        }
-        Err(TitleValidationError::TooLong { max, actual }) => {
-            return error_response(
-                StatusCode::BAD_REQUEST,
-                "VALIDATION_TITLE_TOO_LONG",
-                "title exceeds maximum length",
-                Some(json!({ "max": max, "actual": actual })),
-            );
-        }
+        Err(error) => return title_validation_error_response(error, "title is required"),
     };
 
     let insert_result = sqlx::query("INSERT INTO tasks (title, completed) VALUES (?, ?)")
@@ -151,22 +116,7 @@ pub(crate) async fn update_task(
     if let Some(title) = payload.title.as_deref() {
         let trimmed = match validate_title(title) {
             Ok(valid_title) => valid_title,
-            Err(TitleValidationError::Empty) => {
-                return error_response(
-                    StatusCode::BAD_REQUEST,
-                    "VALIDATION_TITLE_REQUIRED",
-                    "title cannot be empty",
-                    None,
-                );
-            }
-            Err(TitleValidationError::TooLong { max, actual }) => {
-                return error_response(
-                    StatusCode::BAD_REQUEST,
-                    "VALIDATION_TITLE_TOO_LONG",
-                    "title exceeds maximum length",
-                    Some(json!({ "max": max, "actual": actual })),
-                );
-            }
+            Err(error) => return title_validation_error_response(error, "title cannot be empty"),
         };
         task.title = trimmed;
     }

@@ -2,6 +2,7 @@ mod health;
 mod planner;
 mod shared;
 mod tasks;
+mod tasks_support;
 
 pub(crate) use health::{health, ready};
 pub(crate) use planner::plan_tasks;
