@@ -111,6 +111,7 @@ async fn create_task_then_list_tasks() {
     assert_eq!(tasks[0]["title"], "Write integration tests");
     assert_eq!(tasks[0]["completed"], false);
     assert_eq!(tasks[0]["difficulty"], 1);
+    assert!(tasks[0]["goal"].is_null());
 }
 
 /// Verifies list endpoint filtering and pagination behavior.
