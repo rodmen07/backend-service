@@ -264,6 +264,39 @@ Use this map to connect files to backend design patterns and Rust-specific pract
 - [ ] 7) Check `src/lib/validation.rs` for normalization and guard patterns
 - [ ] 8) Inspect `tests/api_tasks.rs` to see end-to-end behavior validation
 
+## Working context from current code
+
+### Runtime behavior details
+
+- `src/main.rs` reads `HOST`, `PORT`, and `DATABASE_URL` with safe defaults and starts Axum on a typed `SocketAddr`.
+- Database migrations are always applied on startup via `sqlx::migrate!` inside `AppState::from_database_url`.
+- Router currently exposes both `/` and `/health` as liveness endpoints.
+
+### API and middleware details
+
+- Middleware stack currently uses `CorsLayer::permissive()` and `TraceLayer::new_for_http()`.
+- Task list endpoint uses SQL query composition and enforces stable ordering (`ORDER BY id ASC`).
+- Pagination behavior in handlers resolves to default `limit=50`, `offset=0`, with limit clamped into `1..=100`.
+
+### Planner integration details
+
+- `POST /api/v1/tasks/plan` forwards to `AI_ORCHESTRATOR_PLAN_URL` (default `http://127.0.0.1:8081/plan`).
+- Backend trims returned tasks, drops empty entries, and caps persisted response payload to first `20` tasks.
+- Upstream planner failures are mapped into stable backend codes such as:
+	- `LLM_UPSTREAM_REQUEST_FAILED`
+	- `LLM_UPSTREAM_RESPONSE_FAILED`
+	- `LLM_RESPONSE_INVALID`
+	- `LLM_TASKS_EMPTY`
+
+### Testing notes for contributors
+
+- Integration tests in `tests/api_tasks.rs` run against isolated on-disk SQLite files per test case.
+- Tests explicitly validate:
+	- standardized error envelope behavior,
+	- title invariant checks,
+	- readiness semantics,
+	- auth-not-enforced v1 stance.
+
 ## Debug in VS Code
 
 1. Open the Run and Debug view.

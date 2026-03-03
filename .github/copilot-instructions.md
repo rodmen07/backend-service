@@ -80,3 +80,32 @@ When changing contracts, env vars, or endpoint behavior:
 - update README.md,
 - update tests and examples/curl snippets when applicable,
 - keep frontend-service and ai-orchestrator-service compatibility in scope.
+
+## 12) Current code map (authoritative)
+
+- Startup/bootstrap: `src/main.rs`
+- Shared state + migration bootstrap: `src/lib/app_state.rs`
+- Route wiring + middleware: `src/lib/router.rs`
+- HTTP handler logic + planner delegation: `src/lib/handlers.rs`
+- DTOs/error envelope: `src/lib/models.rs`
+- Validation helpers and title constraints: `src/lib/validation.rs`
+- Integration tests: `tests/api_tasks.rs`
+
+## 13) Handler-level implementation constraints
+
+- Keep root `/` mapped to liveness behavior unless explicitly changing public health semantics.
+- Preserve permissive CORS + tracing middleware unless deployment hardening is requested.
+- Keep list query builder semantics (completed filter + `q` LIKE filter + deterministic ordering).
+- Preserve pagination defaults and clamp behavior used by current handler implementation.
+
+## 14) Planner delegation constraints
+
+- Keep planner response sanitization (trim + drop empty) in backend before returning to clients.
+- Preserve cap on returned task count from planner path to avoid unexpectedly large payloads.
+- Maintain existing upstream-to-backend error code mapping strategy for stable frontend handling.
+
+## 15) Test-first change guidance
+
+- For any endpoint behavior change, update/add integration coverage in `tests/api_tasks.rs`.
+- Prefer asserting standardized error envelope fields (`code`, `message`, `details`) in tests.
+- Keep auth posture tests intact until v2 auth work is intentionally introduced.
