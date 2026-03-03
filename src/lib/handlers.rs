@@ -3,7 +3,7 @@
 //! This module demonstrates common backend patterns in Rust:
 //! extraction, validation, SQL composition, and response shaping.
 
-use std::env;
+use std::{env, time::Duration};
 
 use axum::{
     Json,
@@ -223,7 +223,20 @@ pub(crate) async fn plan_tasks(Json(payload): Json<GoalPlanRequest>) -> impl Int
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| "http://127.0.0.1:8081/plan".to_string());
 
-    let client = reqwest::Client::new();
+    let client = match reqwest::Client::builder()
+        .timeout(orchestrator_timeout())
+        .build()
+    {
+        Ok(value) => value,
+        Err(_) => {
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "HTTP_CLIENT_INIT_FAILED",
+                "failed to initialize upstream HTTP client",
+                None,
+            );
+        }
+    };
     let request_body = OrchestratorPlanRequest {
         goal: goal.to_string(),
     };
@@ -317,6 +330,20 @@ pub(crate) async fn plan_tasks(Json(payload): Json<GoalPlanRequest>) -> impl Int
         }),
     )
         .into_response()
+}
+
+/// Resolves orchestrator request timeout from environment.
+///
+/// Environment:
+/// - `AI_ORCHESTRATOR_TIMEOUT_SECONDS` (default `15`)
+fn orchestrator_timeout() -> Duration {
+    let seconds = env::var("AI_ORCHESTRATOR_TIMEOUT_SECONDS")
+        .ok()
+        .and_then(|value| value.parse::<f64>().ok())
+        .filter(|value| value.is_finite() && *value > 0.0)
+        .unwrap_or(15.0);
+
+    Duration::from_secs_f64(seconds)
 }
 
 /// Updates an existing task by ID.
@@ -501,8 +528,9 @@ struct PlannedTasksPayload {
 
 #[cfg(test)]
 mod tests {
-    use super::resolved_pagination;
+    use super::{orchestrator_timeout, resolved_pagination};
     use crate::models::ListTasksQuery;
+    use std::env;
 
     /// Verifies default pagination values when no parameters are provided.
     #[test]
@@ -522,5 +550,31 @@ mod tests {
         };
 
         assert_eq!(resolved_pagination(&params), (100, 3));
+    }
+
+    #[test]
+    fn orchestrator_timeout_uses_default_for_invalid_values() {
+        unsafe {
+            env::remove_var("AI_ORCHESTRATOR_TIMEOUT_SECONDS");
+        }
+        assert_eq!(orchestrator_timeout().as_secs_f64(), 15.0);
+
+        unsafe {
+            env::set_var("AI_ORCHESTRATOR_TIMEOUT_SECONDS", "0");
+        }
+        assert_eq!(orchestrator_timeout().as_secs_f64(), 15.0);
+
+        unsafe {
+            env::set_var("AI_ORCHESTRATOR_TIMEOUT_SECONDS", "invalid");
+        }
+        assert_eq!(orchestrator_timeout().as_secs_f64(), 15.0);
+    }
+
+    #[test]
+    fn orchestrator_timeout_accepts_positive_values() {
+        unsafe {
+            env::set_var("AI_ORCHESTRATOR_TIMEOUT_SECONDS", "2.5");
+        }
+        assert_eq!(orchestrator_timeout().as_secs_f64(), 2.5);
     }
 }

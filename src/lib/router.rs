@@ -3,11 +3,17 @@
 //! This module wires handlers into URL paths and applies cross-cutting concerns
 //! such as CORS and HTTP tracing.
 
+use std::env;
+
 use axum::{
     Router,
+    http::{HeaderValue, Method},
     routing::{get, patch},
 };
-use tower_http::{cors::CorsLayer, trace::TraceLayer};
+use tower_http::{
+    cors::{Any, CorsLayer},
+    trace::TraceLayer,
+};
 
 use crate::app_state::AppState;
 use crate::handlers::{
@@ -30,6 +36,38 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/v1/tasks", get(list_tasks).post(create_task))
         .route("/api/v1/tasks/{id}", patch(update_task).delete(delete_task))
         .with_state(state)
-        .layer(CorsLayer::permissive())
+        .layer(build_cors_layer())
         .layer(TraceLayer::new_for_http())
+}
+
+fn build_cors_layer() -> CorsLayer {
+    let configured_origins = env::var("ALLOWED_ORIGINS")
+        .ok()
+        .unwrap_or_default();
+
+    if configured_origins.trim().is_empty() {
+        return CorsLayer::permissive();
+    }
+
+    let origins: Vec<HeaderValue> = configured_origins
+        .split(',')
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .filter_map(|value| HeaderValue::from_str(value).ok())
+        .collect();
+
+    if origins.is_empty() {
+        return CorsLayer::permissive();
+    }
+
+    CorsLayer::new()
+        .allow_origin(origins)
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PATCH,
+            Method::DELETE,
+            Method::OPTIONS,
+        ])
+        .allow_headers(Any)
 }

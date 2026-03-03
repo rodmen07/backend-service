@@ -17,9 +17,11 @@ Use this file as the repository-specific implementation contract for AI-assisted
 ## 3) Runtime and configuration
 
 - Default bind: 0.0.0.0:3000.
-- Supported env vars: HOST, PORT, DATABASE_URL, AI_ORCHESTRATOR_PLAN_URL.
+- Supported env vars: HOST, PORT, DATABASE_URL, AI_ORCHESTRATOR_PLAN_URL, ALLOWED_ORIGINS, AI_ORCHESTRATOR_TIMEOUT_SECONDS.
 - Planner URL default when unset: http://127.0.0.1:8081/plan.
 - DATABASE_URL defaults to sqlite://app.db unless explicitly overridden.
+- Planner timeout default when unset: 15 seconds.
+- If ALLOWED_ORIGINS is empty/unset, backend currently uses permissive CORS fallback.
 
 ## 4) API contracts (v1 stability required)
 

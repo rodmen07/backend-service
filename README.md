@@ -41,6 +41,16 @@ HOST=127.0.0.1 PORT=8080 DATABASE_URL=sqlite://app.db cargo run
 
 `DATABASE_URL` defaults to `sqlite://app.db` and migrations run automatically at startup.
 
+Optional production hardening env vars:
+
+```bash
+ALLOWED_ORIGINS=https://rodmen07.github.io,https://your-frontend.example.com
+AI_ORCHESTRATOR_TIMEOUT_SECONDS=15
+```
+
+- `ALLOWED_ORIGINS`: comma-separated CORS allowlist. If unset/empty, backend falls back to permissive CORS (dev-friendly default).
+- `AI_ORCHESTRATOR_TIMEOUT_SECONDS`: timeout for backend -> orchestrator HTTP calls (default `15`).
+
 ### LLM goal planning configuration
 
 The backend now delegates goal planning to the `ai-orchestrator-service`.
