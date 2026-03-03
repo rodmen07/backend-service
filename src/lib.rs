@@ -7,7 +7,7 @@
 mod app_state;
 #[path = "lib/auth.rs"]
 mod auth;
-#[path = "lib/handlers.rs"]
+#[path = "lib/handlers/mod.rs"]
 mod handlers;
 #[path = "lib/models.rs"]
 mod models;
