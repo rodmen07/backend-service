@@ -9,6 +9,9 @@ primary_region = "iad"
   PORT = "8080"
   DATABASE_URL = "sqlite:///data/app.db"
   AI_ORCHESTRATOR_PLAN_URL = "https://ai-orchestrator-service-rodmen07.fly.dev/plan"
+  AUTH_ENFORCED = "true"
+  AUTH_JWT_ALGORITHM = "HS256"
+  AUTH_ISSUER = "auth-service"
 
 [[mounts]]
   source = "data"
