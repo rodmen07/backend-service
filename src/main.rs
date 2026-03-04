@@ -5,7 +5,7 @@
 
 use std::{env, net::SocketAddr};
 
-use projects::{AppState, build_router};
+use task_api_service::{AppState, build_router};
 
 /// Starts the backend server.
 ///

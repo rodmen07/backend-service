@@ -7,7 +7,7 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use projects::{AppState, build_router};
+use task_api_service::{AppState, build_router};
 use serde_json::Value;
 use std::{
     path::PathBuf,

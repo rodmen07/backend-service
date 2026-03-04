@@ -5,7 +5,7 @@ use sqlx::{QueryBuilder, Sqlite};
 
 use crate::models::ListTasksQuery;
 use crate::validation::{
-    DifficultyValidationError, TitleValidationError, normalize_search_query,
+    DifficultyValidationError, StatusValidationError, TitleValidationError, normalize_search_query,
 };
 
 use super::shared::error_response;
@@ -28,11 +28,27 @@ pub(crate) fn apply_list_task_filters(
             query_builder.push(" AND ");
         } else {
             query_builder.push(" WHERE ");
+            has_where_clause = true;
         }
 
         query_builder
             .push("title LIKE ")
             .push_bind(format!("%{search}%"));
+    }
+
+    if let Some(status) = params.status.as_deref() {
+        let trimmed = status.trim().to_lowercase();
+        if !trimmed.is_empty() {
+            if has_where_clause {
+                query_builder.push(" AND ");
+            } else {
+                query_builder.push(" WHERE ");
+            }
+
+            query_builder
+                .push("status = ")
+                .push_bind(trimmed);
+        }
     }
 }
 
@@ -63,6 +79,17 @@ pub(crate) fn difficulty_validation_error_response(error: DifficultyValidationEr
             "VALIDATION_DIFFICULTY_OUT_OF_RANGE",
             "difficulty must be between 1 and 6",
             Some(json!({ "min": min, "max": max, "actual": actual })),
+        ),
+    }
+}
+
+pub(crate) fn status_validation_error_response(error: StatusValidationError) -> Response {
+    match error {
+        StatusValidationError::Invalid { actual } => error_response(
+            StatusCode::BAD_REQUEST,
+            "VALIDATION_STATUS_INVALID",
+            "status must be one of: todo, doing, done",
+            Some(json!({ "actual": actual, "valid": ["todo", "doing", "done"] })),
         ),
     }
 }

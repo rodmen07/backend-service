@@ -13,6 +13,7 @@ pub struct Task {
     pub completed: bool,
     pub difficulty: i64,
     pub goal: Option<String>,
+    pub status: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -20,6 +21,7 @@ pub struct CreateTaskRequest {
     pub title: String,
     pub difficulty: Option<i64>,
     pub goal: Option<String>,
+    pub status: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -28,6 +30,7 @@ pub struct UpdateTaskRequest {
     pub completed: Option<bool>,
     pub difficulty: Option<i64>,
     pub goal: Option<String>,
+    pub status: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -35,6 +38,7 @@ pub struct ListTasksQuery {
     pub limit: Option<u32>,
     pub offset: Option<u32>,
     pub completed: Option<bool>,
+    pub status: Option<String>,
     pub q: Option<String>,
 }
 

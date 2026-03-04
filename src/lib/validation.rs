@@ -5,6 +5,9 @@ pub(crate) const TITLE_MAX_LENGTH: usize = 120;
 pub(crate) const TASK_DIFFICULTY_MIN: i64 = 1;
 pub(crate) const TASK_DIFFICULTY_MAX: i64 = 6;
 
+/// Valid task status values for Kanban board workflow.
+pub(crate) const VALID_TASK_STATUSES: &[&str] = &["todo", "doing", "done"];
+
 /// Represents task-title validation failures.
 #[derive(Debug, PartialEq)]
 pub(crate) enum TitleValidationError {
@@ -15,6 +18,11 @@ pub(crate) enum TitleValidationError {
 #[derive(Debug, PartialEq)]
 pub(crate) enum DifficultyValidationError {
     OutOfRange { min: i64, max: i64, actual: i64 },
+}
+
+#[derive(Debug, PartialEq)]
+pub(crate) enum StatusValidationError {
+    Invalid { actual: String },
 }
 
 /// Validates and normalizes a task title by trimming whitespace.
@@ -72,11 +80,37 @@ pub(crate) fn validate_difficulty(input: i64) -> Result<i64, DifficultyValidatio
     }
 }
 
+/// Validates and normalizes a task status string.
+///
+/// Accepted values: `todo`, `doing`, `done` (case-insensitive, trimmed).
+pub(crate) fn validate_status(input: &str) -> Result<String, StatusValidationError> {
+    let normalized = input.trim().to_lowercase();
+    if VALID_TASK_STATUSES.contains(&normalized.as_str()) {
+        Ok(normalized)
+    } else {
+        Err(StatusValidationError::Invalid {
+            actual: input.to_string(),
+        })
+    }
+}
+
+/// Returns the `completed` boolean that should correspond to a given status value.
+pub(crate) fn completed_for_status(status: &str) -> bool {
+    status == "done"
+}
+
+/// Returns the `status` string that should correspond to a given completed boolean.
+pub(crate) fn status_for_completed(completed: bool) -> &'static str {
+    if completed { "done" } else { "todo" }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        DifficultyValidationError, TASK_DIFFICULTY_MAX, TASK_DIFFICULTY_MIN, TITLE_MAX_LENGTH,
-        TitleValidationError, normalize_search_query, validate_difficulty, validate_title,
+        DifficultyValidationError, StatusValidationError, TASK_DIFFICULTY_MAX,
+        TASK_DIFFICULTY_MIN, TITLE_MAX_LENGTH, TitleValidationError, completed_for_status,
+        normalize_search_query, status_for_completed, validate_difficulty, validate_status,
+        validate_title,
     };
 
     /// Ensures blank/whitespace-only titles are rejected.
@@ -129,5 +163,40 @@ mod tests {
                 actual: 0
             })
         ));
+    }
+
+    #[test]
+    fn validate_status_accepts_valid_values() {
+        assert_eq!(validate_status("todo"), Ok("todo".to_string()));
+        assert_eq!(validate_status("doing"), Ok("doing".to_string()));
+        assert_eq!(validate_status("done"), Ok("done".to_string()));
+    }
+
+    #[test]
+    fn validate_status_normalizes_case_and_whitespace() {
+        assert_eq!(validate_status("  TODO  "), Ok("todo".to_string()));
+        assert_eq!(validate_status("Doing"), Ok("doing".to_string()));
+        assert_eq!(validate_status("DONE"), Ok("done".to_string()));
+    }
+
+    #[test]
+    fn validate_status_rejects_invalid() {
+        assert!(matches!(
+            validate_status("invalid"),
+            Err(StatusValidationError::Invalid { .. })
+        ));
+    }
+
+    #[test]
+    fn completed_for_status_maps_correctly() {
+        assert!(completed_for_status("done"));
+        assert!(!completed_for_status("todo"));
+        assert!(!completed_for_status("doing"));
+    }
+
+    #[test]
+    fn status_for_completed_maps_correctly() {
+        assert_eq!(status_for_completed(true), "done");
+        assert_eq!(status_for_completed(false), "todo");
     }
 }

@@ -60,6 +60,7 @@ mod tests {
             limit: Some(500),
             offset: Some(3),
             completed: None,
+            status: None,
             q: None,
         };
 

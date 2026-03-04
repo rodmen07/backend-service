@@ -1,6 +1,6 @@
-# Rust Web Backend (Starter)
+# Task API Service (Rust/Axum)
 
-A minimal Rust backend for a web application, built with Axum.
+A minimal Rust task API service for a web application, built with Axum.
 
 ## Prerequisites
 
