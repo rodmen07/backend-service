@@ -3,7 +3,7 @@
 /// Maximum allowed task title length in Unicode scalar values.
 pub(crate) const TITLE_MAX_LENGTH: usize = 120;
 pub(crate) const TASK_DIFFICULTY_MIN: i64 = 1;
-pub(crate) const TASK_DIFFICULTY_MAX: i64 = 5;
+pub(crate) const TASK_DIFFICULTY_MAX: i64 = 6;
 
 /// Represents task-title validation failures.
 #[derive(Debug, PartialEq)]

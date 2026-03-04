@@ -61,7 +61,7 @@ pub(crate) fn difficulty_validation_error_response(error: DifficultyValidationEr
         DifficultyValidationError::OutOfRange { min, max, actual } => error_response(
             StatusCode::BAD_REQUEST,
             "VALIDATION_DIFFICULTY_OUT_OF_RANGE",
-            "difficulty must be between 1 and 5",
+            "difficulty must be between 1 and 6",
             Some(json!({ "min": min, "max": max, "actual": actual })),
         ),
     }
