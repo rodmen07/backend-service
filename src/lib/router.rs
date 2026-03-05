@@ -25,8 +25,8 @@ use tower_http::{
 use crate::auth::{AUTH_HEADER, AuthClaims, validate_authorization_header};
 use crate::app_state::AppState;
 use crate::handlers::{
-    admin_metrics, admin_request_logs, admin_user_activity, create_task, delete_task, health,
-    info, list_tasks, plan_tasks, ready, update_task,
+    admin_backup, admin_metrics, admin_request_logs, admin_user_activity, create_task,
+    delete_task, health, info, list_tasks, plan_tasks, ready, update_task,
 };
 use crate::models::ApiError;
 use crate::rate_limit::rate_limit_middleware;
@@ -43,6 +43,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/v1/admin/metrics", get(admin_metrics))
         .route("/api/v1/admin/requests", get(admin_request_logs))
         .route("/api/v1/admin/users", get(admin_user_activity))
+        .route("/api/v1/admin/backup", axum::routing::post(admin_backup))
         .layer(from_fn(require_admin));
 
     let protected_routes = Router::new()

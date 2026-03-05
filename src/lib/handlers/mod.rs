@@ -6,7 +6,7 @@ mod shared;
 mod tasks;
 mod tasks_support;
 
-pub(crate) use admin::{admin_metrics, admin_request_logs, admin_user_activity};
+pub(crate) use admin::{admin_backup, admin_metrics, admin_request_logs, admin_user_activity};
 pub(crate) use health::{health, ready};
 pub(crate) use info::info;
 pub(crate) use planner::plan_tasks;

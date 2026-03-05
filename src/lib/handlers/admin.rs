@@ -4,6 +4,7 @@ use axum::{
     extract::{Query, State},
     response::IntoResponse,
 };
+use serde_json::json;
 use sqlx::FromRow;
 
 use crate::app_state::AppState;
@@ -127,6 +128,40 @@ pub(crate) async fn admin_user_activity(
             StatusCode::INTERNAL_SERVER_ERROR,
             "DB_ADMIN_USER_ACTIVITY_FAILED",
             "failed to list user activity",
+            None,
+        ),
+    }
+}
+
+/// Create an atomic SQLite backup via `VACUUM INTO`.
+///
+/// The backup is written to `/data/backups/app-<timestamp>.db`.
+pub(crate) async fn admin_backup(State(state): State<AppState>) -> impl IntoResponse {
+    let timestamp = chrono::Utc::now().format("%Y%m%dT%H%M%SZ");
+    let backup_dir = std::env::var("BACKUP_DIR").unwrap_or_else(|_| "/data/backups".to_string());
+    let backup_path = format!("{backup_dir}/app-{timestamp}.db");
+
+    // Ensure the backup directory exists.
+    if let Err(e) = tokio::fs::create_dir_all(&backup_dir).await {
+        return error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "BACKUP_DIR_FAILED",
+            &format!("could not create backup directory: {e}"),
+            None,
+        );
+    }
+
+    let query = format!("VACUUM INTO '{backup_path}'");
+    match sqlx::query(&query).execute(&state.pool).await {
+        Ok(_) => Json(json!({
+            "status": "ok",
+            "backup_path": backup_path,
+        }))
+        .into_response(),
+        Err(e) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "BACKUP_FAILED",
+            &format!("VACUUM INTO failed: {e}"),
             None,
         ),
     }
