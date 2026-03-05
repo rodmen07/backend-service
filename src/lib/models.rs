@@ -23,6 +23,8 @@ pub struct CreateTaskRequest {
     pub difficulty: Option<i64>,
     pub goal: Option<String>,
     pub status: Option<String>,
+    /// Caller-supplied source; only "ai_generated" is accepted; anything else defaults to "manual".
+    pub source: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -51,7 +53,7 @@ pub struct GoalPlanRequest {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GoalPlanResponse {
     pub goal: String,
-    pub tasks: Vec<Task>,
+    pub tasks: Vec<String>,
 }
 
 /// Query parameters for clearing AI-generated tasks under a specific goal.

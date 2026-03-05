@@ -77,13 +77,19 @@ pub(crate) async fn create_task(
     };
     let completed = completed_for_status(&status);
 
+    let source = match payload.source.as_deref() {
+        Some("ai_generated") => "ai_generated",
+        _ => "manual",
+    };
+
     let insert_result =
-        sqlx::query("INSERT INTO tasks (title, completed, difficulty, goal, status, source) VALUES (?, ?, ?, ?, ?, 'manual')")
+        sqlx::query("INSERT INTO tasks (title, completed, difficulty, goal, status, source) VALUES (?, ?, ?, ?, ?, ?)")
         .bind(&title)
         .bind(completed)
         .bind(difficulty)
         .bind(goal)
         .bind(&status)
+        .bind(source)
         .execute(&state.pool)
         .await;
 
