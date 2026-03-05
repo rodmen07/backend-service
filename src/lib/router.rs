@@ -3,16 +3,16 @@
 //! This module wires handlers into URL paths and applies cross-cutting concerns
 //! such as CORS and HTTP tracing.
 
-use std::{env, net::SocketAddr, time::Instant};
+use std::{env, time::Instant};
 
 use axum::{
     Json,
     Router,
-    extract::{ConnectInfo, Request, State},
+    extract::{Request, State},
     middleware::{Next, from_fn, from_fn_with_state},
     http::{HeaderValue, Method},
     response::{IntoResponse, Response},
-    routing::{delete, get, patch},
+    routing::{get, patch},
 };
 use serde_json::json;
 use tower_http::{

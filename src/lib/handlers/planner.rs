@@ -7,8 +7,8 @@ use std::net::SocketAddr;
 
 use crate::app_state::AppState;
 use crate::models::{GoalPlanRequest, GoalPlanResponse, Task};
-use crate::rate_limit::{client_ip, is_plan_allowed};
-use crate::validation::{GoalValidationError, GOAL_MAX_LENGTH, TITLE_MAX_LENGTH, validate_goal};
+use crate::rate_limit::is_plan_allowed;
+use crate::validation::{GoalValidationError, TITLE_MAX_LENGTH, validate_goal};
 
 use super::shared::{error_response, orchestrator_timeout};
 
@@ -33,22 +33,20 @@ struct PlannedTasksPayload {
 
 pub(crate) async fn plan_tasks(
     State(state): State<AppState>,
-    connect_info: Option<ConnectInfo<SocketAddr>>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Json(payload): Json<GoalPlanRequest>,
 ) -> impl IntoResponse {
     // --- Plan-specific rate limit (stricter than the global limiter) ---
     let ip = {
-        // Synthesise a minimal Request-like view for IP extraction.
+        // Prefer X-Forwarded-For (set by reverse proxies), fall back to socket addr.
         let forwarded = headers
             .get("x-forwarded-for")
             .and_then(|v| v.to_str().ok())
             .and_then(|v| v.split(',').next())
             .map(|s| s.trim().to_owned());
 
-        forwarded
-            .or_else(|| connect_info.map(|ci| ci.0.ip().to_string()))
-            .unwrap_or_else(|| "unknown".to_owned())
+        forwarded.unwrap_or_else(|| addr.ip().to_string())
     };
 
     if !is_plan_allowed(&ip) {
