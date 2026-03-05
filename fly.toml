@@ -12,6 +12,7 @@ primary_region = "iad"
   AUTH_ENFORCED = "true"
   AUTH_JWT_ALGORITHM = "HS256"
   AUTH_ISSUER = "auth-service"
+  ALLOWED_ORIGINS = "https://rodmen07.github.io"
 
 [[mounts]]
   source = "data"

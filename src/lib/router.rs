@@ -186,7 +186,8 @@ async fn audit_request(State(state): State<AppState>, request: Request, next: Ne
 fn build_cors_layer() -> CorsLayer {
     let configured_origins = env::var("ALLOWED_ORIGINS").ok().unwrap_or_default();
 
-    if configured_origins.trim().is_empty() {
+    if configured_origins.trim() == "*" {
+        tracing::warn!("CORS: ALLOWED_ORIGINS is '*' — fully permissive (not recommended for production)");
         return CorsLayer::permissive();
     }
 
@@ -198,7 +199,17 @@ fn build_cors_layer() -> CorsLayer {
         .collect();
 
     if origins.is_empty() {
-        return CorsLayer::permissive();
+        tracing::info!("CORS: no ALLOWED_ORIGINS configured — rejecting cross-origin requests");
+        // Return a restrictive layer that allows no external origins.
+        return CorsLayer::new()
+            .allow_methods([
+                Method::GET,
+                Method::POST,
+                Method::PATCH,
+                Method::DELETE,
+                Method::OPTIONS,
+            ])
+            .allow_headers(Any);
     }
 
     CorsLayer::new()
