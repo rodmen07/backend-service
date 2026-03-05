@@ -155,7 +155,7 @@ Integration tests in `tests/api_tasks.rs` run against isolated on-disk SQLite fi
 k6 run load/k6_tasks.js
 ```
 
-Default profile: ramp to 10 VUs → sustain 20 VUs for 2 min → ramp down.  
+Default profile: ramp to 10 VUs → sustain 20 VUs for 2 min → ramp down.
 Thresholds: failure rate < 1 %, p95 latency < 300 ms.
 
 ## Lint & Format

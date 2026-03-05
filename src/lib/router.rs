@@ -29,6 +29,7 @@ use crate::handlers::{
     info, list_tasks, plan_tasks, ready, update_task,
 };
 use crate::models::ApiError;
+use crate::rate_limit::rate_limit_middleware;
 
 /// Builds the application router with routes and middleware.
 ///
@@ -57,6 +58,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/ready", get(ready))
         .route("/api/v1/info", get(info))
         .merge(protected_routes)
+        .layer(from_fn(rate_limit_middleware))
         .layer(from_fn_with_state(state.clone(), audit_request))
         .with_state(state)
         .layer(build_cors_layer())

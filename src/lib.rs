@@ -11,6 +11,8 @@ mod auth;
 mod handlers;
 #[path = "lib/models.rs"]
 mod models;
+#[path = "lib/rate_limit.rs"]
+mod rate_limit;
 #[path = "lib/router.rs"]
 mod router;
 #[path = "lib/validation.rs"]
