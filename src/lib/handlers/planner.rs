@@ -1,8 +1,10 @@
+use axum::extract::State;
 use axum::http::StatusCode;
 use axum::{Json, response::IntoResponse};
 use serde::Deserialize;
 use serde_json::json;
 
+use crate::app_state::AppState;
 use crate::models::{GoalPlanRequest, GoalPlanResponse};
 
 use super::shared::{error_response, orchestrator_timeout};
@@ -22,7 +24,10 @@ struct PlannedTasksPayload {
     tasks: Vec<String>,
 }
 
-pub(crate) async fn plan_tasks(Json(payload): Json<GoalPlanRequest>) -> impl IntoResponse {
+pub(crate) async fn plan_tasks(
+    State(state): State<AppState>,
+    Json(payload): Json<GoalPlanRequest>,
+) -> impl IntoResponse {
     let goal = payload.goal.trim();
     if goal.is_empty() {
         return error_response(
@@ -38,27 +43,14 @@ pub(crate) async fn plan_tasks(Json(payload): Json<GoalPlanRequest>) -> impl Int
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| "http://127.0.0.1:8081/plan".to_string());
 
-    let client = match reqwest::Client::builder()
-        .timeout(orchestrator_timeout())
-        .build()
-    {
-        Ok(value) => value,
-        Err(_) => {
-            return error_response(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "HTTP_CLIENT_INIT_FAILED",
-                "failed to initialize upstream HTTP client",
-                None,
-            );
-        }
-    };
-
     let request_body = OrchestratorPlanRequest {
         goal: goal.to_string(),
     };
 
-    let response = match client
+    let response = match state
+        .http_client
         .post(plan_url)
+        .timeout(orchestrator_timeout())
         .header("Content-Type", "application/json")
         .json(&request_body)
         .send()

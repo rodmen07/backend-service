@@ -4,13 +4,20 @@
 
 use sqlx::{SqlitePool, sqlite::SqlitePoolOptions};
 
+/// Shared application state injected into handlers via Axum's `State` extractor.
+///
+/// Cloning is cheap — both `SqlitePool` and `reqwest::Client` use internal `Arc`s.
 #[derive(Clone)]
 pub struct AppState {
     pub(crate) pool: SqlitePool,
+    pub(crate) http_client: reqwest::Client,
 }
 
 impl AppState {
     /// Builds application state from a SQLite connection string.
+    ///
+    /// Creates a connection pool, runs pending migrations, and initialises a
+    /// reusable HTTP client for upstream calls (e.g. the AI orchestrator).
     ///
     /// # Parameters
     /// - `database_url`: SQLx-compatible SQLite URL (for example, `sqlite://app.db`).
@@ -26,6 +33,11 @@ impl AppState {
 
         sqlx::migrate!("./migrations").run(&pool).await?;
 
-        Ok(Self { pool })
+        let http_client = reqwest::Client::builder()
+            .user_agent(concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION")))
+            .build()
+            .expect("failed to build HTTP client");
+
+        Ok(Self { pool, http_client })
     }
 }

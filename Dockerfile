@@ -15,7 +15,7 @@ RUN apt-get update \
 
 WORKDIR /app
 
-COPY --from=builder /app/target/release/projects /usr/local/bin/projects
+COPY --from=builder /app/target/release/task-api-service /usr/local/bin/task-api-service
 COPY --from=builder /app/migrations ./migrations
 
 ENV HOST=0.0.0.0
@@ -24,4 +24,4 @@ ENV DATABASE_URL=sqlite:///data/app.db
 
 EXPOSE 8080
 
-CMD ["sh", "-c", "mkdir -p /data && touch /data/app.db && projects"]
+CMD ["sh", "-c", "mkdir -p /data && touch /data/app.db && task-api-service"]

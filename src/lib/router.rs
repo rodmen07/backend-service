@@ -26,7 +26,7 @@ use crate::auth::{AUTH_HEADER, AuthClaims, validate_authorization_header};
 use crate::app_state::AppState;
 use crate::handlers::{
     admin_metrics, admin_request_logs, admin_user_activity, create_task, delete_task, health,
-    list_tasks, plan_tasks, ready, update_task,
+    info, list_tasks, plan_tasks, ready, update_task,
 };
 use crate::models::ApiError;
 
@@ -55,6 +55,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/", get(health))
         .route("/health", get(health))
         .route("/ready", get(ready))
+        .route("/api/v1/info", get(info))
         .merge(protected_routes)
         .layer(from_fn_with_state(state.clone(), audit_request))
         .with_state(state)

@@ -1,6 +1,7 @@
-PRAGMA foreign_keys = OFF;
+-- sqlx wraps each migration in a transaction automatically.
+-- Manual BEGIN/COMMIT removed to avoid nested-transaction errors on SQLite.
 
-BEGIN TRANSACTION;
+PRAGMA foreign_keys = OFF;
 
 CREATE TABLE tasks_new (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -25,7 +26,5 @@ FROM tasks;
 
 DROP TABLE tasks;
 ALTER TABLE tasks_new RENAME TO tasks;
-
-COMMIT;
 
 PRAGMA foreign_keys = ON;

@@ -1,167 +1,144 @@
-# Task API Service (Rust/Axum)
+# Task API Service (Rust / Axum)
 
-A minimal Rust task API service for a web application, built with Axum.
+REST API microservice powering task management, AI-assisted goal planning, JWT-protected admin dashboards, and request audit logging — all backed by SQLite.
+
+## Features
+
+| Area | Highlights |
+|---|---|
+| **Task CRUD** | Create, list (filter/paginate/search), update, and delete tasks |
+| **AI Goal Planner** | `POST /api/v1/tasks/plan` proxies to the AI orchestrator for LLM-generated sub-tasks |
+| **JWT Authentication** | Bearer-token middleware; role-based admin gating (`AUTH_ENFORCED`) |
+| **Admin Metrics** | Aggregated task stats, recent request logs, per-user activity |
+| **Request Audit Log** | Every `/api/` call is persisted with subject, method, path, status, latency |
+| **Service Info** | `GET /api/v1/info` exposes version and feature flags at runtime |
+| **Health / Readiness** | `/health` (process alive) and `/ready` (DB connectivity check) |
+| **Shared HTTP Client** | Single `reqwest::Client` in `AppState` — connection pooling across upstream calls |
+| **Structured Errors** | Consistent `{ code, message, details }` envelope on every non-2xx response |
+| **Load Testing** | k6 harness with baseline scenarios and quality thresholds |
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Language | Rust (edition 2024) |
+| Web framework | Axum 0.8 |
+| Database | SQLite via sqlx 0.8 (compile-time checked) |
+| HTTP client | reqwest 0.12 (rustls) |
+| Auth | jsonwebtoken 8.3 |
+| Middleware | tower-http 0.6 (CORS, tracing) |
+| CI | GitHub Actions (fmt, clippy, test) |
+| Deployment | Fly.io (Docker) |
+
+## Project Structure
+
+```
+src/
+├── main.rs                    # Tokio entrypoint, env parsing
+├── lib.rs                     # Facade — re-exports public API
+└── lib/
+    ├── app_state.rs           # AppState (SqlitePool + reqwest::Client)
+    ├── auth.rs                # JWT validation, AuthClaims, middleware helpers
+    ├── models.rs              # Request/response DTOs, DB row types
+    ├── router.rs              # Route wiring, CORS, audit middleware
+    ├── validation.rs          # Input normalisation and guard functions
+    └── handlers/
+        ├── mod.rs             # Handler barrel export
+        ├── tasks.rs           # CRUD handlers (list, create, update, delete)
+        ├── tasks_support.rs   # Query builder helpers
+        ├── planner.rs         # AI goal-planning proxy
+        ├── admin.rs           # Admin metrics, request logs, user activity
+        ├── health.rs          # /health and /ready
+        ├── info.rs            # /api/v1/info (version + features)
+        └── shared.rs          # error_response, pagination, timeout utils
+migrations/                    # SQLite schema evolution (sqlx)
+tests/api_tasks.rs             # Black-box integration tests (tower one-shot)
+load/k6_tasks.js               # k6 load-test harness
+```
 
 ## Prerequisites
 
 - Rust toolchain (`rustup`, `cargo`, `rustc`)
-- Linux build tools (`build-essential`)
+- Linux build tools (`build-essential`) — for cross-compilation or Docker builds
 
-## Build
-
-```bash
-cargo build
-```
-
-Release build:
+## Build & Run
 
 ```bash
-cargo build --release
+cargo build            # debug
+cargo build --release  # optimised
+
+cargo run              # starts on http://0.0.0.0:3000 by default
 ```
 
-## Run
-
-```bash
-cargo run
-```
-
-Release run:
-
-```bash
-cargo run --release
-```
-
-The server starts on `http://0.0.0.0:3000` by default.
-
-Override host/port/database with environment variables:
+Override defaults with environment variables:
 
 ```bash
 HOST=127.0.0.1 PORT=8080 DATABASE_URL=sqlite://app.db cargo run
 ```
 
-`DATABASE_URL` defaults to `sqlite://app.db` and migrations run automatically at startup.
+Migrations run automatically at startup.
 
-Optional production hardening env vars:
+## Environment Variables
 
-```bash
-ALLOWED_ORIGINS=https://rodmen07.github.io,https://your-frontend.example.com
-AI_ORCHESTRATOR_TIMEOUT_SECONDS=15
-```
+| Variable | Default | Description |
+|---|---|---|
+| `HOST` | `0.0.0.0` | Bind address |
+| `PORT` | `3000` | Bind port |
+| `DATABASE_URL` | `sqlite://app.db` | SQLx-compatible SQLite URL |
+| `AUTH_ENFORCED` | `false` | Enable JWT authentication middleware |
+| `ALLOWED_ORIGINS` | *(permissive)* | Comma-separated CORS allowlist |
+| `AI_ORCHESTRATOR_PLAN_URL` | `http://127.0.0.1:8081/plan` | Upstream planner endpoint |
+| `AI_ORCHESTRATOR_TIMEOUT_SECONDS` | `15` | Upstream HTTP timeout |
 
-- `ALLOWED_ORIGINS`: comma-separated CORS allowlist. If unset/empty, backend falls back to permissive CORS (dev-friendly default).
-- `AI_ORCHESTRATOR_TIMEOUT_SECONDS`: timeout for backend -> orchestrator HTTP calls (default `15`).
+## API Endpoints
 
-### LLM goal planning configuration
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/health` | — | Process liveness |
+| `GET` | `/ready` | — | Database readiness (`SELECT 1`) |
+| `GET` | `/api/v1/info` | — | Service version and feature flags |
+| `GET` | `/api/v1/tasks` | Bearer | List tasks (filters: `limit`, `offset`, `completed`, `status`, `q`) |
+| `POST` | `/api/v1/tasks` | Bearer | Create task |
+| `PATCH` | `/api/v1/tasks/{id}` | Bearer | Update task fields |
+| `DELETE` | `/api/v1/tasks/{id}` | Bearer | Delete task |
+| `POST` | `/api/v1/tasks/plan` | Bearer | AI goal → sub-tasks |
+| `GET` | `/api/v1/admin/metrics` | Admin | Aggregated task metrics |
+| `GET` | `/api/v1/admin/requests` | Admin | Recent API request audit logs |
+| `GET` | `/api/v1/admin/users` | Admin | Per-user activity summary |
 
-The backend now delegates goal planning to the `ai-orchestrator-service`.
+### Error Envelope
 
-Set the internal planner URL (optional):
-
-```bash
-AI_ORCHESTRATOR_PLAN_URL=http://127.0.0.1:8081/plan
-```
-
-If unset, the backend defaults to `http://127.0.0.1:8081/plan`.
-
-Provider credentials are configured in `ai-orchestrator-service` (`OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, etc.), not in this backend.
-
-## API endpoints
-
-- `GET /health` -> process liveness check
-- `GET /ready` -> database readiness check
-- `GET /api/v1/tasks` -> list tasks (`limit`, `offset`, `completed`, `q`)
-- `POST /api/v1/tasks` -> create task
-- `POST /api/v1/tasks/plan` -> generate composite tasks from a long-term goal (LLM wrapper)
-- `PATCH /api/v1/tasks/{id}` -> update title/completed
-- `DELETE /api/v1/tasks/{id}` -> delete task
-- `GET /api/v1/admin/metrics` -> admin metrics snapshot
-- `GET /api/v1/admin/requests` -> recent API request logs
-- `GET /api/v1/admin/users` -> aggregated user activity
-
-### Health/readiness semantics
-
-- `/health`: service process is up and can respond to HTTP requests.
-- `/ready`: database connectivity check succeeded (`SELECT 1`) and service is ready for traffic.
-
-### Validation invariants (v1)
-
-- `title` is required (non-empty after trim)
-- `title` max length is `120` characters
-- Task list ordering is stable by `id ASC`
-
-### Error envelope
-
-All non-2xx API errors follow:
+All non-2xx responses follow:
 
 ```json
 {
-	"code": "STABLE_ERROR_CODE",
-	"message": "Human-readable message",
-	"details": { "optional": "metadata" }
+  "code": "STABLE_ERROR_CODE",
+  "message": "Human-readable message",
+  "details": { "optional": "metadata" }
 }
 ```
 
-### Authentication & admin access
-
-- Auth enforcement is controlled by `AUTH_ENFORCED`.
-- Auth header contract:
-	- Header: `Authorization`
-	- Scheme: `Bearer`
-	- Format: `Authorization: Bearer <token>`
-- Admin endpoints require role `admin` in JWT claims when auth enforcement is enabled.
-
-### Request tracing and user history
-
-- Backend persists API request audits in SQLite table `api_request_logs`.
-- Each row captures: timestamp, subject, method, path, status code, duration, user agent.
-- Use admin APIs for observability:
-	- `GET /api/v1/admin/requests?limit=50&offset=0`
-	- `GET /api/v1/admin/users?limit=50&offset=0`
-
-### Viewing current database data
-
-With local SQLite (`app.db`) you can inspect directly:
+## API Examples
 
 ```bash
-sqlite3 app.db ".tables"
-sqlite3 app.db "SELECT id,title,completed,difficulty,goal FROM tasks ORDER BY id DESC LIMIT 20;"
-sqlite3 app.db "SELECT id,occurred_at,subject,method,path,status_code,duration_ms FROM api_request_logs ORDER BY id DESC LIMIT 20;"
-```
-
-## API examples
-
-Create task:
-
-```bash
+# Create task
 curl -X POST http://localhost:3000/api/v1/tasks \
-	-H "Content-Type: application/json" \
-	-d '{"title":"Design landing page"}'
-```
+  -H "Content-Type: application/json" \
+  -d '{"title":"Design landing page"}'
 
-List tasks:
-
-```bash
-curl http://localhost:3000/api/v1/tasks
-```
-
-List tasks with filters:
-
-```bash
+# List with filters
 curl "http://localhost:3000/api/v1/tasks?limit=20&offset=0&completed=false&q=design"
-```
 
-Update task:
-
-```bash
+# Update task
 curl -X PATCH http://localhost:3000/api/v1/tasks/1 \
-	-H "Content-Type: application/json" \
-	-d '{"completed":true}'
-```
+  -H "Content-Type: application/json" \
+  -d '{"completed":true}'
 
-Delete task:
-
-```bash
+# Delete task
 curl -X DELETE http://localhost:3000/api/v1/tasks/1
+
+# Service info
+curl http://localhost:3000/api/v1/info
 ```
 
 ## Test
@@ -170,260 +147,46 @@ curl -X DELETE http://localhost:3000/api/v1/tasks/1
 cargo test
 ```
 
-## Load test (k6)
+Integration tests in `tests/api_tasks.rs` run against isolated on-disk SQLite files per test case.
 
-Load-test harness: `load/k6_tasks.js`
-
-### Baseline scenario
-
-- Creates tasks
-- Lists tasks with filters
-- Updates task completion state
-- Deletes every other created task
-
-### Default target profile
-
-- Ramp to 10 VUs over 30s
-- Sustain 20 VUs for 2m
-- Ramp down to 0 over 30s
-
-### Quality thresholds
-
-- failure rate: `< 1%`
-- p95 latency: `< 300ms`
-
-### Run
+## Load Test (k6)
 
 ```bash
 k6 run load/k6_tasks.js
 ```
 
-Optional environment overrides:
+Default profile: ramp to 10 VUs → sustain 20 VUs for 2 min → ramp down.  
+Thresholds: failure rate < 1 %, p95 latency < 300 ms.
 
-```bash
-BASE_URL=http://localhost:3000 TASK_TITLE_PREFIX=LoadTask k6 run load/k6_tasks.js
-```
-
-## Lint and format
+## Lint & Format
 
 ```bash
 cargo fmt --all
 cargo clippy --all-targets --all-features -- -D warnings
 ```
 
-## CI
+## CI / CD
 
-GitHub Actions workflow is defined in `.github/workflows/ci.yml` and runs:
+- **CI**: `.github/workflows/ci.yml` — fmt check, clippy (warnings denied), tests
+- **Deploy**: `.github/workflows/deploy-fly.yml` — pushes to Fly.io on `main`
 
-- formatting check
-- clippy with warnings denied
-- tests
+## Codebase Reading Guide
 
-## Automated releases
+| File | Pattern | Why |
+|---|---|---|
+| `main.rs` | Composition root | Env parsing → state init → router → serve |
+| `lib.rs` | Facade | Stable public surface; hides internal layout |
+| `models.rs` | DTO / domain boundary | `serde` + `sqlx::FromRow` for compile-time alignment |
+| `app_state.rs` | Shared state / DI | `SqlitePool` + `reqwest::Client`, cheap to clone |
+| `router.rs` | Middleware pipeline | Route wiring, CORS, auth layers, audit logging |
+| `handlers/` | Controller layer | Extractor-based input, `IntoResponse` polymorphism |
+| `validation.rs` | Guard utilities | `Option<T>`-driven validation with ergonomic branching |
+| `tests/api_tasks.rs` | Integration tests | Per-test DB isolation, `tower::ServiceExt` one-shot |
 
-Release automation is configured with Release Please:
+## Inspect Local Data
 
-- workflow: `.github/workflows/release-please.yml`
-- config: `.release-please-config.json`
-- manifest: `.release-please-manifest.json`
-
-Use Conventional Commits so versions/changelog are computed correctly:
-
-- `feat: ...` for new features (minor bump)
-- `fix: ...` for bug fixes (patch bump)
-- `feat!: ...` or `BREAKING CHANGE:` in body/footer for major bump
-
-## Release profile
-
-Release defaults are configured in `Cargo.toml`:
-
-- LTO enabled
-- single codegen unit
-- symbols stripped
-- panic abort strategy
-
-## Contributing
-
-- PR template: `.github/pull_request_template.md`
-- Branch protection setup: `.github/branch-protection-checklist.md`
-- Code owners: `.github/CODEOWNERS`
-
-Current solo-maintainer PR rules:
-
-- PRs and required CI checks are enforced on `main`
-- Required approvals are set to `0` (self-review limitation on GitHub)
-
-## How to read this tutorial codebase
-
-Use this map to connect files to backend design patterns and Rust-specific practices.
-
-- `src/main.rs`
-	- Pattern: Composition root / application bootstrap
-	- Rust nuance: explicit env parsing, typed socket address, async runtime startup
-- `src/lib.rs`
-	- Pattern: Facade / public API boundary
-	- Rust nuance: re-exporting stable crate surface while hiding internal module layout
-- `src/lib/app_state.rs`
-	- Pattern: Shared state container + dependency injection
-	- Rust nuance: cloned `SqlitePool` handle and async DB initialization with migrations
-- `src/lib/router.rs`
-	- Pattern: Router composition and middleware pipeline
-	- Rust nuance: Axum route typing and middleware layering (`CORS`, tracing)
-- `src/lib/handlers.rs`
-	- Pattern: Controller/handler layer
-	- Rust nuance: extractor-based input handling, `IntoResponse` return polymorphism
-- `src/lib/models.rs`
-	- Pattern: DTO/domain schema boundary
-	- Rust nuance: `serde` + `sqlx::FromRow` derives for compile-time type alignment
-- `src/lib/validation.rs`
-	- Pattern: Input normalization/validation utility layer
-	- Rust nuance: `Option<T>`-driven validation flow for ergonomic error branching
-- `migrations/`
-	- Pattern: Schema evolution via versioned migrations
-	- Rust nuance: startup migration execution through `sqlx::migrate!`
-- `tests/api_tasks.rs`
-	- Pattern: Black-box HTTP integration testing
-	- Rust nuance: per-test SQLite isolation and one-shot router execution (`tower::ServiceExt`)
-
-### Suggested reading order
-
-- [ ] 1) Start with `src/main.rs` to understand runtime/bootstrap flow
-- [ ] 2) Read `src/lib.rs` to see the facade and module boundaries
-- [ ] 3) Review `src/lib/models.rs` for request/response and DB row shapes
-- [ ] 4) Read `src/lib/app_state.rs` to understand DB lifecycle and migrations
-- [ ] 5) Study `src/lib/router.rs` for route wiring and middleware composition
-- [ ] 6) Walk through `src/lib/handlers.rs` for endpoint logic and persistence operations
-- [ ] 7) Check `src/lib/validation.rs` for normalization and guard patterns
-- [ ] 8) Inspect `tests/api_tasks.rs` to see end-to-end behavior validation
-
-## Working context from current code
-
-### Runtime behavior details
-
-- `src/main.rs` reads `HOST`, `PORT`, and `DATABASE_URL` with safe defaults and starts Axum on a typed `SocketAddr`.
-- Database migrations are always applied on startup via `sqlx::migrate!` inside `AppState::from_database_url`.
-- Router currently exposes both `/` and `/health` as liveness endpoints.
-
-### API and middleware details
-
-- Middleware stack currently uses `CorsLayer::permissive()` and `TraceLayer::new_for_http()`.
-- Task list endpoint uses SQL query composition and enforces stable ordering (`ORDER BY id ASC`).
-- Pagination behavior in handlers resolves to default `limit=50`, `offset=0`, with limit clamped into `1..=100`.
-
-### Planner integration details
-
-- `POST /api/v1/tasks/plan` forwards to `AI_ORCHESTRATOR_PLAN_URL` (default `http://127.0.0.1:8081/plan`).
-- Backend trims returned tasks, drops empty entries, and caps persisted response payload to first `20` tasks.
-- Upstream planner failures are mapped into stable backend codes such as:
-	- `LLM_UPSTREAM_REQUEST_FAILED`
-	- `LLM_UPSTREAM_RESPONSE_FAILED`
-	- `LLM_RESPONSE_INVALID`
-	- `LLM_TASKS_EMPTY`
-
-### Testing notes for contributors
-
-- Integration tests in `tests/api_tasks.rs` run against isolated on-disk SQLite files per test case.
-- Tests explicitly validate:
-	- standardized error envelope behavior,
-	- title invariant checks,
-	- readiness semantics,
-	- auth-not-enforced v1 stance.
-
-## Debug in VS Code
-
-1. Open the Run and Debug view.
-2. Choose **Debug Rust (GDB)**.
-3. Start debugging.
-
-## Roadmap TODOs
-
-### Service definition alignment (n=1)
-
-- [x] Adopt n=1 scope as **Tasks API microservice** (not tenant-routing service)
-- [ ] Document potential v2 pivot path to tenant-header deterministic routing service
-
-### Definition phase checklist (for this Tasks API)
-
-- [ ] Define canonical request/response JSON schemas for each endpoint
-- [ ] Define endpoint failure modes and exact status-code mapping
-- [ ] Specify pagination/filter semantics precisely (defaults, max limit, ordering)
-- [ ] Choose and document one load-bearing invariant for v1
-
-#### Candidate invariant options
-
-- [x] `title` must be non-empty and capped at max length `120`
-- [x] `id` is immutable; PATCH only updates `title` and `completed`
-- [x] List endpoint ordering is stable under pagination (`ORDER BY id ASC`)
-
-### Core backend
-
-- [x] Add SQLite persistence with `sqlx` (replace in-memory store)
-- [x] Add database migrations and startup migration checks
-- [x] Add strong request validation (required fields, length constraints)
-- [x] Standardize API error responses (`code`, `message`, optional `details`)
-- [x] Add pagination/filtering/sorting for task lists (`limit`, `offset`, `completed`, `q`)
-
-### Contract and errors
-
-- [x] Adopt standard error envelope (`code`, `message`, `details`)
-- [ ] Document error codes and response examples per endpoint
-- [ ] Add OpenAPI/Swagger spec for endpoint contracts
-
-### Security and access
-
-- [ ] Add authentication middleware (JWT or API key)
-- [ ] Add user ownership rules for task access
-- [ ] Tighten CORS by environment (dev vs production origins)
-
-### Reliability and operations
-
-- [ ] Add structured logging with request IDs and latency metrics
-- [x] Split health checks into `/health` and `/ready` (DB readiness)
-- [ ] Add rate limiting on write endpoints
-- [x] Define `/health` semantics (process alive) and `/ready` semantics (DB + migrations)
-
-### Product logic
-
-- [ ] Add due dates, priorities, tags, and richer task status transitions
-- [ ] Add audit fields (`created_at`, `updated_at`, `deleted_at`)
-- [ ] Add soft delete semantics
-- [ ] Add idempotency support for `POST` operations
-
-### Auth stance (v1 decision)
-
-- [x] Decide and document v1 auth stance: no auth, API key, or JWT
-- [x] If postponed, freeze future auth header contract now to avoid client churn
-
-### Quality and developer experience
-
-- [x] Add HTTP integration tests for full API flows
-- [ ] Add deterministic test database setup and seed fixtures
-- [x] Add load-test harness (k6 or vegeta)
-- [x] Define baseline load scenario (create/list/filter/patch/delete)
-- [x] Define target metrics (RPS, duration, p95 latency)
-
-### Deployment tracking (GitHub Pages context)
-
-- [x] Decide and document architecture: GitHub Pages for frontend only, backend hosted separately
-- [ ] Select backend host (for example Fly.io/Render/Railway/Azure) and define environment variables
-- [ ] Add CORS config allowing the GitHub Pages frontend origin
-- [ ] Add production deployment workflow for backend (build, migrate, deploy)
-- [ ] Add frontend API base URL strategy for GitHub Pages (`production` vs `local`)
-
-### Deployment architecture
-
-- Frontend: GitHub Pages (static hosting)
-- Backend API: separate service host (required for Axum server runtime)
-- Integration: frontend calls hosted backend API via configured base URL
-
-### Recommended implementation order
-
-- [x] 1) Persistence + migrations
-- [x] 2) Service contract + invariant definition
-- [x] 3) Standardized error model
-- [x] 4) Validation hardening (including invariant enforcement)
-- [x] 5) Pagination/filtering
-- [x] 6) Integration tests
-- [x] 7) `/health` + `/ready` operational semantics
-- [x] 8) Auth stance decision + interface freeze
-- [x] 9) Load-test spec and harness
+```bash
+sqlite3 app.db ".tables"
+sqlite3 app.db "SELECT id,title,completed,difficulty,goal,status FROM tasks ORDER BY id DESC LIMIT 20;"
+sqlite3 app.db "SELECT id,occurred_at,subject,method,path,status_code,duration_ms FROM api_request_logs ORDER BY id DESC LIMIT 20;"
+```
