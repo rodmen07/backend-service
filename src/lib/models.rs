@@ -15,6 +15,7 @@ pub struct Task {
     pub goal: Option<String>,
     pub status: String,
     pub source: String,
+    pub due_date: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -25,6 +26,7 @@ pub struct CreateTaskRequest {
     pub status: Option<String>,
     /// Caller-supplied source; only "ai_generated" is accepted; anything else defaults to "manual".
     pub source: Option<String>,
+    pub due_date: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -34,6 +36,7 @@ pub struct UpdateTaskRequest {
     pub difficulty: Option<i64>,
     pub goal: Option<String>,
     pub status: Option<String>,
+    pub due_date: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Default)]

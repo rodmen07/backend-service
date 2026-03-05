@@ -23,7 +23,7 @@ pub(crate) async fn list_tasks(
     let (limit, offset) = resolved_pagination(&params);
 
     let mut query_builder =
-        QueryBuilder::<Sqlite>::new("SELECT id, title, completed, difficulty, goal, status, source FROM tasks");
+        QueryBuilder::<Sqlite>::new("SELECT id, title, completed, difficulty, goal, status, source, due_date FROM tasks");
     apply_list_task_filters(&mut query_builder, &params);
 
     query_builder
@@ -82,14 +82,22 @@ pub(crate) async fn create_task(
         _ => "manual",
     };
 
+    let due_date = payload
+        .due_date
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .map(ToOwned::to_owned);
+
     let insert_result =
-        sqlx::query("INSERT INTO tasks (title, completed, difficulty, goal, status, source) VALUES (?, ?, ?, ?, ?, ?)")
+        sqlx::query("INSERT INTO tasks (title, completed, difficulty, goal, status, source, due_date) VALUES (?, ?, ?, ?, ?, ?, ?)")
         .bind(&title)
         .bind(completed)
         .bind(difficulty)
         .bind(goal)
         .bind(&status)
         .bind(source)
+        .bind(due_date)
         .execute(&state.pool)
         .await;
 
@@ -104,7 +112,7 @@ pub(crate) async fn create_task(
 
     let task_id = result.last_insert_rowid();
     let fetch_result = sqlx::query_as::<_, Task>(
-        "SELECT id, title, completed, difficulty, goal, status, source FROM tasks WHERE id = ?",
+        "SELECT id, title, completed, difficulty, goal, status, source, due_date FROM tasks WHERE id = ?",
     )
     .bind(task_id)
     .fetch_one(&state.pool)
@@ -127,7 +135,7 @@ pub(crate) async fn update_task(
     Json(payload): Json<UpdateTaskRequest>,
 ) -> impl IntoResponse {
     let existing =
-        sqlx::query_as::<_, Task>("SELECT id, title, completed, difficulty, goal, status, source FROM tasks WHERE id = ?")
+        sqlx::query_as::<_, Task>("SELECT id, title, completed, difficulty, goal, status, source, due_date FROM tasks WHERE id = ?")
             .bind(id)
             .fetch_optional(&state.pool)
             .await;
@@ -188,13 +196,19 @@ pub(crate) async fn update_task(
         task.status = validated;
     }
 
+    if let Some(raw_due) = payload.due_date {
+        let trimmed = raw_due.trim().to_string();
+        task.due_date = if trimmed.is_empty() { None } else { Some(trimmed) };
+    }
+
     let update_result =
-        sqlx::query("UPDATE tasks SET title = ?, completed = ?, difficulty = ?, goal = ?, status = ? WHERE id = ?")
+        sqlx::query("UPDATE tasks SET title = ?, completed = ?, difficulty = ?, goal = ?, status = ?, due_date = ? WHERE id = ?")
         .bind(&task.title)
         .bind(task.completed)
         .bind(task.difficulty)
         .bind(&task.goal)
         .bind(&task.status)
+        .bind(&task.due_date)
         .bind(task.id)
         .execute(&state.pool)
         .await;
