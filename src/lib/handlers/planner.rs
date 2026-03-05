@@ -152,15 +152,13 @@ pub(crate) async fn plan_tasks(
             .await
             .ok()
             .and_then(|payload| payload.detail)
-            .unwrap_or_else(|| {
-                "LLM planning is not configured. Set OPENROUTER_API_KEY.".to_string()
-            });
+            .unwrap_or_else(|| "LLM planning is not configured.".to_string());
 
-        if detail_message.contains("OPENROUTER_API_KEY") {
+        if detail_message.contains("API_KEY") {
             return error_response(
                 StatusCode::SERVICE_UNAVAILABLE,
                 "LLM_API_KEY_MISSING",
-                "LLM planning is not configured. Set OPENROUTER_API_KEY.",
+                "LLM planning is not configured. Set ANTHROPIC_API_KEY.",
                 None,
             );
         }
@@ -170,6 +168,15 @@ pub(crate) async fn plan_tasks(
             "LLM_UPSTREAM_RESPONSE_FAILED",
             "LLM provider returned an error",
             Some(serde_json::json!({ "detail": detail_message })),
+        );
+    }
+
+    if response.status() == StatusCode::TOO_MANY_REQUESTS {
+        return error_response(
+            StatusCode::TOO_MANY_REQUESTS,
+            "LLM_RATE_LIMIT_EXCEEDED",
+            "Claude API rate limit reached — try again shortly",
+            None,
         );
     }
 
