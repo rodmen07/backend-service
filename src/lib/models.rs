@@ -48,6 +48,10 @@ pub struct ListTasksQuery {
 #[derive(Debug, Deserialize)]
 pub struct GoalPlanRequest {
     pub goal: String,
+    /// Optional refinement instructions forwarded to the AI orchestrator.
+    pub feedback: Option<String>,
+    /// How many tasks to request. Forwarded to the orchestrator (1–15).
+    pub target_count: Option<u8>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

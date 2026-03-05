@@ -17,6 +17,10 @@ struct OrchestratorPlanRequest {
     existing_tasks: Vec<String>,
     /// Tasks from other goals — gives the AI broader context about ongoing work.
     context_tasks: Vec<String>,
+    /// Optional user-supplied refinement instructions.
+    feedback: String,
+    /// Desired number of tasks to generate (1–15).
+    target_count: u8,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -102,10 +106,24 @@ pub(crate) async fn plan_tasks(
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| "http://127.0.0.1:8081/plan".to_string());
 
+    let feedback = payload.feedback
+        .as_deref()
+        .unwrap_or("")
+        .trim()
+        .chars()
+        .take(500)
+        .collect::<String>();
+
+    let target_count = payload.target_count
+        .map(|n| n.clamp(1, 15))
+        .unwrap_or(7);
+
     let request_body = OrchestratorPlanRequest {
         goal: goal.clone(),
         existing_tasks,
         context_tasks,
+        feedback,
+        target_count,
     };
 
     let response = match state
