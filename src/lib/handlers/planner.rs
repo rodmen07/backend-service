@@ -1,17 +1,24 @@
-use axum::extract::State;
-use axum::http::StatusCode;
+use axum::extract::{ConnectInfo, State};
+use axum::http::{HeaderMap, StatusCode};
 use axum::{Json, response::IntoResponse};
 use serde::Deserialize;
 use serde_json::json;
+use std::net::SocketAddr;
 
 use crate::app_state::AppState;
-use crate::models::{GoalPlanRequest, GoalPlanResponse};
+use crate::models::{GoalPlanRequest, GoalPlanResponse, Task};
+use crate::rate_limit::{client_ip, is_plan_allowed};
+use crate::validation::{GoalValidationError, GOAL_MAX_LENGTH, TITLE_MAX_LENGTH, validate_goal};
 
 use super::shared::{error_response, orchestrator_timeout};
 
 #[derive(Debug, serde::Serialize)]
 struct OrchestratorPlanRequest {
     goal: String,
+    /// Tasks already assigned to this goal — the AI will avoid suggesting duplicates.
+    existing_tasks: Vec<String>,
+    /// Tasks from other goals — gives the AI broader context about ongoing work.
+    context_tasks: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -26,25 +33,84 @@ struct PlannedTasksPayload {
 
 pub(crate) async fn plan_tasks(
     State(state): State<AppState>,
+    connect_info: Option<ConnectInfo<SocketAddr>>,
+    headers: HeaderMap,
     Json(payload): Json<GoalPlanRequest>,
 ) -> impl IntoResponse {
-    let goal = payload.goal.trim();
-    if goal.is_empty() {
+    // --- Plan-specific rate limit (stricter than the global limiter) ---
+    let ip = {
+        // Synthesise a minimal Request-like view for IP extraction.
+        let forwarded = headers
+            .get("x-forwarded-for")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.split(',').next())
+            .map(|s| s.trim().to_owned());
+
+        forwarded
+            .or_else(|| connect_info.map(|ci| ci.0.ip().to_string()))
+            .unwrap_or_else(|| "unknown".to_owned())
+    };
+
+    if !is_plan_allowed(&ip) {
         return error_response(
-            StatusCode::BAD_REQUEST,
-            "VALIDATION_GOAL_REQUIRED",
-            "goal is required",
-            None,
+            StatusCode::TOO_MANY_REQUESTS,
+            "PLAN_RATE_LIMIT_EXCEEDED",
+            "AI planning limit reached — try again later",
+            Some(json!({ "window_seconds": 300, "max_requests": 5 })),
         );
     }
 
+    // --- Goal validation ---
+    let goal = match validate_goal(&payload.goal) {
+        Ok(g) => g,
+        Err(GoalValidationError::Empty) => {
+            return error_response(
+                StatusCode::BAD_REQUEST,
+                "VALIDATION_GOAL_REQUIRED",
+                "goal is required",
+                None,
+            );
+        }
+        Err(GoalValidationError::TooLong { max, actual }) => {
+            return error_response(
+                StatusCode::BAD_REQUEST,
+                "VALIDATION_GOAL_TOO_LONG",
+                "goal exceeds maximum length",
+                Some(json!({ "max": max, "actual": actual })),
+            );
+        }
+    };
+
+    // --- Fetch existing tasks for this goal (to avoid duplicate suggestions) ---
+    let existing_tasks: Vec<String> = sqlx::query_scalar(
+        "SELECT title FROM tasks WHERE goal = ? ORDER BY id ASC",
+    )
+    .bind(&goal)
+    .fetch_all(&state.pool)
+    .await
+    .unwrap_or_default();
+
+    // --- Fetch tasks from other goals (broader context) ---
+    let context_tasks: Vec<String> = sqlx::query_scalar(
+        "SELECT title FROM tasks \
+         WHERE goal IS NOT NULL AND goal != '' AND goal != ? \
+         ORDER BY id DESC LIMIT 20",
+    )
+    .bind(&goal)
+    .fetch_all(&state.pool)
+    .await
+    .unwrap_or_default();
+
+    // --- Call the AI orchestrator ---
     let plan_url = std::env::var("AI_ORCHESTRATOR_PLAN_URL")
         .ok()
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| "http://127.0.0.1:8081/plan".to_string());
 
     let request_body = OrchestratorPlanRequest {
-        goal: goal.to_string(),
+        goal: goal.clone(),
+        existing_tasks,
+        context_tasks,
     };
 
     let response = match state
@@ -115,15 +181,40 @@ pub(crate) async fn plan_tasks(
         }
     };
 
-    let tasks: Vec<String> = planned
-        .tasks
-        .into_iter()
-        .map(|task| task.trim().to_string())
-        .filter(|task| !task.is_empty())
-        .take(20)
-        .collect();
+    // --- Persist AI-generated tasks into the database ---
+    let mut inserted_tasks: Vec<Task> = Vec::new();
 
-    if tasks.is_empty() {
+    for raw_title in planned.tasks.into_iter().take(20) {
+        let title = raw_title.trim().to_string();
+        if title.is_empty() || title.chars().count() > TITLE_MAX_LENGTH {
+            continue;
+        }
+
+        let insert_result = sqlx::query(
+            "INSERT INTO tasks (title, completed, difficulty, goal, status, source) \
+             VALUES (?, 0, 1, ?, 'todo', 'ai_generated')",
+        )
+        .bind(&title)
+        .bind(&goal)
+        .execute(&state.pool)
+        .await;
+
+        if let Ok(result) = insert_result {
+            let task_id = result.last_insert_rowid();
+            if let Ok(task) = sqlx::query_as::<_, Task>(
+                "SELECT id, title, completed, difficulty, goal, status, source \
+                 FROM tasks WHERE id = ?",
+            )
+            .bind(task_id)
+            .fetch_one(&state.pool)
+            .await
+            {
+                inserted_tasks.push(task);
+            }
+        }
+    }
+
+    if inserted_tasks.is_empty() {
         return error_response(
             StatusCode::BAD_GATEWAY,
             "LLM_TASKS_EMPTY",
@@ -135,8 +226,8 @@ pub(crate) async fn plan_tasks(
     (
         StatusCode::OK,
         Json(GoalPlanResponse {
-            goal: goal.to_string(),
-            tasks,
+            goal,
+            tasks: inserted_tasks,
         }),
     )
         .into_response()

@@ -23,7 +23,7 @@ pub(crate) async fn list_tasks(
     let (limit, offset) = resolved_pagination(&params);
 
     let mut query_builder =
-        QueryBuilder::<Sqlite>::new("SELECT id, title, completed, difficulty, goal, status FROM tasks");
+        QueryBuilder::<Sqlite>::new("SELECT id, title, completed, difficulty, goal, status, source FROM tasks");
     apply_list_task_filters(&mut query_builder, &params);
 
     query_builder
@@ -78,7 +78,7 @@ pub(crate) async fn create_task(
     let completed = completed_for_status(&status);
 
     let insert_result =
-        sqlx::query("INSERT INTO tasks (title, completed, difficulty, goal, status) VALUES (?, ?, ?, ?, ?)")
+        sqlx::query("INSERT INTO tasks (title, completed, difficulty, goal, status, source) VALUES (?, ?, ?, ?, ?, 'manual')")
         .bind(&title)
         .bind(completed)
         .bind(difficulty)
@@ -98,7 +98,7 @@ pub(crate) async fn create_task(
 
     let task_id = result.last_insert_rowid();
     let fetch_result = sqlx::query_as::<_, Task>(
-        "SELECT id, title, completed, difficulty, goal, status FROM tasks WHERE id = ?",
+        "SELECT id, title, completed, difficulty, goal, status, source FROM tasks WHERE id = ?",
     )
     .bind(task_id)
     .fetch_one(&state.pool)
@@ -121,7 +121,7 @@ pub(crate) async fn update_task(
     Json(payload): Json<UpdateTaskRequest>,
 ) -> impl IntoResponse {
     let existing =
-        sqlx::query_as::<_, Task>("SELECT id, title, completed, difficulty, goal, status FROM tasks WHERE id = ?")
+        sqlx::query_as::<_, Task>("SELECT id, title, completed, difficulty, goal, status, source FROM tasks WHERE id = ?")
             .bind(id)
             .fetch_optional(&state.pool)
             .await;

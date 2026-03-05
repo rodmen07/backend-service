@@ -14,6 +14,7 @@ pub struct Task {
     pub difficulty: i64,
     pub goal: Option<String>,
     pub status: String,
+    pub source: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -50,7 +51,13 @@ pub struct GoalPlanRequest {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GoalPlanResponse {
     pub goal: String,
-    pub tasks: Vec<String>,
+    pub tasks: Vec<Task>,
+}
+
+/// Query parameters for clearing AI-generated tasks under a specific goal.
+#[derive(Debug, Deserialize)]
+pub struct ClearPlanQuery {
+    pub goal: String,
 }
 
 #[derive(Debug, Serialize)]

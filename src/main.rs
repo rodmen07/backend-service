@@ -9,16 +9,10 @@ use task_api_service::{AppState, build_router};
 
 /// Starts the backend server.
 ///
-/// # Parameters
-/// - None directly; configuration is read from environment variables:
-///   - `HOST` (default: `0.0.0.0`)
-///   - `PORT` (default: `3000`)
-///   - `DATABASE_URL` (default: `sqlite://app.db`)
-///
-/// # Returns
-/// - This function does not return on success because it runs the HTTP server loop.
-/// - It panics with a descriptive message if configuration parsing, DB initialization,
-///   listener binding, or server startup fails.
+/// Configuration is read from environment variables:
+/// - `HOST` (default: `0.0.0.0`)
+/// - `PORT` (default: `3000`)
+/// - `DATABASE_URL` (default: `sqlite://app.db`)
 #[tokio::main]
 async fn main() {
     let host = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
@@ -42,7 +36,12 @@ async fn main() {
 
     println!("API server listening on http://{addr}");
 
-    axum::serve(listener, app)
-        .await
-        .expect("server failed unexpectedly");
+    // `into_make_service_with_connect_info` makes the peer socket address available
+    // to middleware (e.g. the rate limiter) via the ConnectInfo extractor.
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await
+    .expect("server failed unexpectedly");
 }

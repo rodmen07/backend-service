@@ -1,17 +1,21 @@
 //! IP-based sliding-window rate limiter middleware.
 //!
-//! Limits the number of requests a single client IP can make within a
-//! configurable time window.  Health and readiness probes are excluded so
-//! that platform health-checks are never throttled.
+//! Two limiters are provided:
+//! - General: applied to all non-health API requests (default 60 req/60 s).
+//! - Plan:    applied only to the AI planning endpoint (default 5 req/300 s).
+//!
+//! Health and readiness probes are excluded so that platform health-checks
+//! are never throttled.
 
 use std::collections::HashMap;
 use std::env;
+use std::net::SocketAddr;
 use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant};
 
 use axum::{
     Json,
-    extract::Request,
+    extract::{ConnectInfo, Request},
     http::StatusCode,
     middleware::Next,
     response::{IntoResponse, Response},
@@ -36,6 +40,13 @@ static MAX_REQUESTS: LazyLock<usize> =
 static WINDOW_SECS: LazyLock<u64> =
     LazyLock::new(|| env_or("RATE_LIMIT_WINDOW_SECONDS", 60));
 
+/// Stricter limits for the expensive AI planning endpoint.
+static PLAN_MAX_REQUESTS: LazyLock<usize> =
+    LazyLock::new(|| env_or("PLAN_RATE_LIMIT_MAX_REQUESTS", 5));
+
+static PLAN_WINDOW_SECS: LazyLock<u64> =
+    LazyLock::new(|| env_or("PLAN_RATE_LIMIT_WINDOW_SECONDS", 300));
+
 // ---------------------------------------------------------------------------
 // Limiter state
 // ---------------------------------------------------------------------------
@@ -47,19 +58,25 @@ struct Bucket {
 static BUCKETS: LazyLock<Mutex<HashMap<String, Bucket>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
-fn is_allowed(key: &str) -> bool {
+static PLAN_BUCKETS: LazyLock<Mutex<HashMap<String, Bucket>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+fn check_bucket(
+    map: &mut HashMap<String, Bucket>,
+    key: &str,
+    max: usize,
+    window: Duration,
+) -> bool {
     let now = Instant::now();
-    let window = Duration::from_secs(*WINDOW_SECS);
     let cutoff = now - window;
 
-    let mut map = BUCKETS.lock().unwrap_or_else(|e| e.into_inner());
     let bucket = map.entry(key.to_owned()).or_insert_with(|| Bucket {
         timestamps: Vec::new(),
     });
 
     bucket.timestamps.retain(|t| *t > cutoff);
 
-    if bucket.timestamps.len() >= *MAX_REQUESTS {
+    if bucket.timestamps.len() >= max {
         return false;
     }
 
@@ -67,17 +84,38 @@ fn is_allowed(key: &str) -> bool {
     true
 }
 
+fn is_allowed(key: &str) -> bool {
+    let mut map = BUCKETS.lock().unwrap_or_else(|e| e.into_inner());
+    check_bucket(&mut map, key, *MAX_REQUESTS, Duration::from_secs(*WINDOW_SECS))
+}
+
+/// Check and consume one token from the plan-specific rate limit bucket.
+/// Returns `true` if the request should be allowed.
+pub fn is_plan_allowed(key: &str) -> bool {
+    let mut map = PLAN_BUCKETS.lock().unwrap_or_else(|e| e.into_inner());
+    check_bucket(&mut map, key, *PLAN_MAX_REQUESTS, Duration::from_secs(*PLAN_WINDOW_SECS))
+}
+
 // ---------------------------------------------------------------------------
-// Helpers
+// IP extraction
 // ---------------------------------------------------------------------------
 
-fn client_ip(request: &Request) -> String {
-    request
+/// Best-effort client IP: X-Forwarded-For first hop → direct peer address.
+pub fn client_ip(request: &Request) -> String {
+    if let Some(forwarded) = request
         .headers()
         .get("x-forwarded-for")
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.split(',').next())
         .map(|s| s.trim().to_owned())
+    {
+        return forwarded;
+    }
+
+    request
+        .extensions()
+        .get::<ConnectInfo<SocketAddr>>()
+        .map(|ci| ci.0.ip().to_string())
         .unwrap_or_else(|| "unknown".to_owned())
 }
 

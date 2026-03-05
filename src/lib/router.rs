@@ -3,18 +3,16 @@
 //! This module wires handlers into URL paths and applies cross-cutting concerns
 //! such as CORS and HTTP tracing.
 
-use std::{env, time::Instant};
+use std::{env, net::SocketAddr, time::Instant};
 
 use axum::{
     Json,
     Router,
-    extract::State,
-    extract::Request,
-    response::IntoResponse,
+    extract::{ConnectInfo, Request, State},
     middleware::{Next, from_fn, from_fn_with_state},
     http::{HeaderValue, Method},
-    response::Response,
-    routing::{get, patch},
+    response::{IntoResponse, Response},
+    routing::{delete, get, patch},
 };
 use serde_json::json;
 use tower_http::{
@@ -25,19 +23,13 @@ use tower_http::{
 use crate::auth::{AUTH_HEADER, AuthClaims, validate_authorization_header};
 use crate::app_state::AppState;
 use crate::handlers::{
-    admin_backup, admin_metrics, admin_request_logs, admin_user_activity, create_task,
-    delete_task, health, info, list_tasks, plan_tasks, ready, update_task,
+    admin_backup, admin_metrics, admin_request_logs, admin_user_activity, clear_plan_tasks,
+    create_task, delete_task, health, info, list_tasks, plan_tasks, ready, update_task,
 };
 use crate::models::ApiError;
 use crate::rate_limit::rate_limit_middleware;
 
 /// Builds the application router with routes and middleware.
-///
-/// # Parameters
-/// - `state`: Shared application state injected into handlers.
-///
-/// # Returns
-/// - Configured `Router` with task, health, and readiness endpoints.
 pub fn build_router(state: AppState) -> Router {
     let admin_routes = Router::new()
         .route("/api/v1/admin/metrics", get(admin_metrics))
@@ -47,7 +39,7 @@ pub fn build_router(state: AppState) -> Router {
         .layer(from_fn(require_admin));
 
     let protected_routes = Router::new()
-        .route("/api/v1/tasks/plan", axum::routing::post(plan_tasks))
+        .route("/api/v1/tasks/plan", axum::routing::post(plan_tasks).delete(clear_plan_tasks))
         .route("/api/v1/tasks", get(list_tasks).post(create_task))
         .route("/api/v1/tasks/{id}", patch(update_task).delete(delete_task))
         .merge(admin_routes)
@@ -201,7 +193,6 @@ fn build_cors_layer() -> CorsLayer {
 
     if origins.is_empty() {
         tracing::info!("CORS: no ALLOWED_ORIGINS configured — rejecting cross-origin requests");
-        // Return a restrictive layer that allows no external origins.
         return CorsLayer::new()
             .allow_methods([
                 Method::GET,

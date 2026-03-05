@@ -5,6 +5,9 @@ pub(crate) const TITLE_MAX_LENGTH: usize = 120;
 pub(crate) const TASK_DIFFICULTY_MIN: i64 = 1;
 pub(crate) const TASK_DIFFICULTY_MAX: i64 = 6;
 
+/// Maximum allowed goal string length in Unicode scalar values.
+pub(crate) const GOAL_MAX_LENGTH: usize = 500;
+
 /// Valid task status values for Kanban board workflow.
 pub(crate) const VALID_TASK_STATUSES: &[&str] = &["todo", "doing", "done"];
 
@@ -25,14 +28,13 @@ pub(crate) enum StatusValidationError {
     Invalid { actual: String },
 }
 
+#[derive(Debug, PartialEq)]
+pub(crate) enum GoalValidationError {
+    Empty,
+    TooLong { max: usize, actual: usize },
+}
+
 /// Validates and normalizes a task title by trimming whitespace.
-///
-/// # Parameters
-/// - `input`: Raw title string from a request payload.
-///
-/// # Returns
-/// - `Ok(String)` with trimmed content when valid.
-/// - `Err(TitleValidationError)` when empty or too long.
 pub(crate) fn validate_title(input: &str) -> Result<String, TitleValidationError> {
     let trimmed = input.trim();
 
@@ -51,14 +53,26 @@ pub(crate) fn validate_title(input: &str) -> Result<String, TitleValidationError
     Ok(trimmed.to_string())
 }
 
+/// Validates and normalizes a planning goal by trimming whitespace.
+pub(crate) fn validate_goal(input: &str) -> Result<String, GoalValidationError> {
+    let trimmed = input.trim();
+
+    if trimmed.is_empty() {
+        return Err(GoalValidationError::Empty);
+    }
+
+    let length = trimmed.chars().count();
+    if length > GOAL_MAX_LENGTH {
+        return Err(GoalValidationError::TooLong {
+            max: GOAL_MAX_LENGTH,
+            actual: length,
+        });
+    }
+
+    Ok(trimmed.to_string())
+}
+
 /// Normalizes search text by trimming whitespace.
-///
-/// # Parameters
-/// - `input`: Raw search query.
-///
-/// # Returns
-/// - `Some(String)` with trimmed query when non-empty.
-/// - `None` when the trimmed value is empty.
 pub(crate) fn normalize_search_query(input: &str) -> Option<String> {
     let trimmed = input.trim();
     if trimmed.is_empty() {
@@ -107,26 +121,24 @@ pub(crate) fn status_for_completed(completed: bool) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::{
-        DifficultyValidationError, StatusValidationError, TASK_DIFFICULTY_MAX,
-        TASK_DIFFICULTY_MIN, TITLE_MAX_LENGTH, TitleValidationError, completed_for_status,
-        normalize_search_query, status_for_completed, validate_difficulty, validate_status,
+        DifficultyValidationError, GoalValidationError, StatusValidationError,
+        GOAL_MAX_LENGTH, TASK_DIFFICULTY_MAX, TASK_DIFFICULTY_MIN, TITLE_MAX_LENGTH,
+        TitleValidationError, completed_for_status, normalize_search_query,
+        status_for_completed, validate_difficulty, validate_goal, validate_status,
         validate_title,
     };
 
-    /// Ensures blank/whitespace-only titles are rejected.
     #[test]
     fn validate_title_rejects_blank() {
         let result = validate_title("   \n");
         assert!(matches!(result, Err(TitleValidationError::Empty)));
     }
 
-    /// Ensures leading/trailing spaces are removed from valid titles.
     #[test]
     fn validate_title_trims_content() {
         assert_eq!(validate_title("  hello  "), Ok("hello".to_string()));
     }
 
-    /// Ensures title length above the defined max is rejected.
     #[test]
     fn validate_title_rejects_too_long() {
         let too_long = "a".repeat(TITLE_MAX_LENGTH + 1);
@@ -141,7 +153,25 @@ mod tests {
         ));
     }
 
-    /// Ensures blank search query strings are rejected.
+    #[test]
+    fn validate_goal_rejects_blank() {
+        assert!(matches!(validate_goal("   "), Err(GoalValidationError::Empty)));
+    }
+
+    #[test]
+    fn validate_goal_rejects_too_long() {
+        let too_long = "a".repeat(GOAL_MAX_LENGTH + 1);
+        assert!(matches!(
+            validate_goal(&too_long),
+            Err(GoalValidationError::TooLong { max: GOAL_MAX_LENGTH, .. })
+        ));
+    }
+
+    #[test]
+    fn validate_goal_trims_and_accepts_valid() {
+        assert_eq!(validate_goal("  learn Rust  "), Ok("learn Rust".to_string()));
+    }
+
     #[test]
     fn normalize_search_query_rejects_blank() {
         assert_eq!(normalize_search_query("   \n"), None);
