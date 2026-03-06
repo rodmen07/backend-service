@@ -1,4 +1,5 @@
 mod admin;
+mod comments;
 mod health;
 mod info;
 mod plan_clear;
@@ -8,6 +9,7 @@ mod tasks;
 mod tasks_support;
 
 pub(crate) use admin::{admin_backup, admin_metrics, admin_request_logs, admin_user_activity};
+pub(crate) use comments::{create_comment, delete_comment, list_comments, update_comment};
 pub(crate) use health::{health, ready};
 pub(crate) use info::info;
 pub(crate) use plan_clear::clear_plan_tasks;

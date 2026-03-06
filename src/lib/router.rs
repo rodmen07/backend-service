@@ -24,7 +24,8 @@ use crate::auth::{AUTH_HEADER, AuthClaims, validate_authorization_header};
 use crate::app_state::AppState;
 use crate::handlers::{
     admin_backup, admin_metrics, admin_request_logs, admin_user_activity, clear_plan_tasks,
-    create_task, delete_task, health, info, list_tasks, plan_tasks, ready, update_task,
+    create_comment, create_task, delete_comment, delete_task, health, info, list_comments,
+    list_tasks, plan_tasks, ready, update_comment, update_task,
 };
 use crate::models::ApiError;
 use crate::rate_limit::rate_limit_middleware;
@@ -42,6 +43,8 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/v1/tasks/plan", axum::routing::post(plan_tasks).delete(clear_plan_tasks))
         .route("/api/v1/tasks", get(list_tasks).post(create_task))
         .route("/api/v1/tasks/{id}", patch(update_task).delete(delete_task))
+        .route("/api/v1/tasks/{id}/comments", get(list_comments).post(create_comment))
+        .route("/api/v1/comments/{id}", patch(update_comment).delete(delete_comment))
         .merge(admin_routes)
         .layer(from_fn(require_auth));
 

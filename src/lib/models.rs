@@ -77,6 +77,26 @@ pub struct ApiError {
     pub details: Option<Value>,
 }
 
+#[derive(Debug, Clone, Serialize, FromRow)]
+pub struct TaskComment {
+    pub id: i64,
+    pub task_id: i64,
+    pub author_id: Option<String>,
+    pub body: String,
+    pub created_at: String,
+    pub updated_at: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateCommentRequest {
+    pub body: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateCommentRequest {
+    pub body: Option<String>,
+}
+
 #[derive(Debug, Serialize)]
 pub struct HealthResponse {
     pub status: &'static str,
