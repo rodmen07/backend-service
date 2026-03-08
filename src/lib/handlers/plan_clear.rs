@@ -30,12 +30,10 @@ pub(crate) async fn clear_plan_tasks(
         );
     }
 
-    let result = sqlx::query(
-        "DELETE FROM tasks WHERE source = 'ai_generated' AND goal = ?",
-    )
-    .bind(&goal)
-    .execute(&state.pool)
-    .await;
+    let result = sqlx::query("DELETE FROM tasks WHERE source = 'ai_generated' AND goal = ?")
+        .bind(&goal)
+        .execute(&state.pool)
+        .await;
 
     match result {
         Ok(r) => Json(json!({ "deleted": r.rows_affected(), "goal": goal })).into_response(),

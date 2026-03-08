@@ -34,11 +34,9 @@ fn env_or<T: std::str::FromStr>(name: &str, default: T) -> T {
         .unwrap_or(default)
 }
 
-static MAX_REQUESTS: LazyLock<usize> =
-    LazyLock::new(|| env_or("RATE_LIMIT_MAX_REQUESTS", 60));
+static MAX_REQUESTS: LazyLock<usize> = LazyLock::new(|| env_or("RATE_LIMIT_MAX_REQUESTS", 60));
 
-static WINDOW_SECS: LazyLock<u64> =
-    LazyLock::new(|| env_or("RATE_LIMIT_WINDOW_SECONDS", 60));
+static WINDOW_SECS: LazyLock<u64> = LazyLock::new(|| env_or("RATE_LIMIT_WINDOW_SECONDS", 60));
 
 /// Stricter limits for the expensive AI planning endpoint.
 static PLAN_MAX_REQUESTS: LazyLock<usize> =
@@ -86,14 +84,24 @@ fn check_bucket(
 
 fn is_allowed(key: &str) -> bool {
     let mut map = BUCKETS.lock().unwrap_or_else(|e| e.into_inner());
-    check_bucket(&mut map, key, *MAX_REQUESTS, Duration::from_secs(*WINDOW_SECS))
+    check_bucket(
+        &mut map,
+        key,
+        *MAX_REQUESTS,
+        Duration::from_secs(*WINDOW_SECS),
+    )
 }
 
 /// Check and consume one token from the plan-specific rate limit bucket.
 /// Returns `true` if the request should be allowed.
 pub fn is_plan_allowed(key: &str) -> bool {
     let mut map = PLAN_BUCKETS.lock().unwrap_or_else(|e| e.into_inner());
-    check_bucket(&mut map, key, *PLAN_MAX_REQUESTS, Duration::from_secs(*PLAN_WINDOW_SECS))
+    check_bucket(
+        &mut map,
+        key,
+        *PLAN_MAX_REQUESTS,
+        Duration::from_secs(*PLAN_WINDOW_SECS),
+    )
 }
 
 // ---------------------------------------------------------------------------

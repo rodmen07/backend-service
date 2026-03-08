@@ -24,8 +24,22 @@ pub(crate) async fn list_comments(
         .await;
 
     match task_exists {
-        Ok(None) => return error_response(StatusCode::NOT_FOUND, "TASK_NOT_FOUND", "task not found", None),
-        Err(_) => return error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "database error", None),
+        Ok(None) => {
+            return error_response(
+                StatusCode::NOT_FOUND,
+                "TASK_NOT_FOUND",
+                "task not found",
+                None,
+            );
+        }
+        Err(_) => {
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "database error",
+                None,
+            );
+        }
         Ok(Some(_)) => {}
     }
 
@@ -37,7 +51,12 @@ pub(crate) async fn list_comments(
     .await
     {
         Ok(comments) => Json(comments).into_response(),
-        Err(_) => error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_LIST_COMMENTS_FAILED", "failed to list comments", None),
+        Err(_) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "DB_LIST_COMMENTS_FAILED",
+            "failed to list comments",
+            None,
+        ),
     }
 }
 
@@ -53,14 +72,33 @@ pub(crate) async fn create_comment(
         .await;
 
     match task_exists {
-        Ok(None) => return error_response(StatusCode::NOT_FOUND, "TASK_NOT_FOUND", "task not found", None),
-        Err(_) => return error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "database error", None),
+        Ok(None) => {
+            return error_response(
+                StatusCode::NOT_FOUND,
+                "TASK_NOT_FOUND",
+                "task not found",
+                None,
+            );
+        }
+        Err(_) => {
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "database error",
+                None,
+            );
+        }
         Ok(Some(_)) => {}
     }
 
     let body = payload.body.trim().to_string();
     if body.is_empty() {
-        return error_response(StatusCode::UNPROCESSABLE_ENTITY, "COMMENT_BODY_REQUIRED", "comment body is required", None);
+        return error_response(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "COMMENT_BODY_REQUIRED",
+            "comment body is required",
+            None,
+        );
     }
     if body.len() > COMMENT_MAX_BODY_LEN {
         return error_response(
@@ -90,7 +128,12 @@ pub(crate) async fn create_comment(
     .await;
 
     let Ok(result) = insert_result else {
-        return error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_CREATE_COMMENT_FAILED", "failed to create comment", None);
+        return error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "DB_CREATE_COMMENT_FAILED",
+            "failed to create comment",
+            None,
+        );
     };
 
     let comment_id = result.last_insert_rowid();
@@ -102,7 +145,12 @@ pub(crate) async fn create_comment(
     .await
     {
         Ok(comment) => (StatusCode::CREATED, Json(comment)).into_response(),
-        Err(_) => error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_FETCH_COMMENT_FAILED", "failed to load created comment", None),
+        Err(_) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "DB_FETCH_COMMENT_FAILED",
+            "failed to load created comment",
+            None,
+        ),
     }
 }
 
@@ -119,16 +167,31 @@ pub(crate) async fn update_comment(
     .await;
 
     let Ok(Some(_)) = existing else {
-        return error_response(StatusCode::NOT_FOUND, "COMMENT_NOT_FOUND", "comment not found", None);
+        return error_response(
+            StatusCode::NOT_FOUND,
+            "COMMENT_NOT_FOUND",
+            "comment not found",
+            None,
+        );
     };
 
     let Some(raw_body) = payload.body else {
-        return error_response(StatusCode::UNPROCESSABLE_ENTITY, "COMMENT_BODY_REQUIRED", "comment body is required", None);
+        return error_response(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "COMMENT_BODY_REQUIRED",
+            "comment body is required",
+            None,
+        );
     };
 
     let body = raw_body.trim().to_string();
     if body.is_empty() {
-        return error_response(StatusCode::UNPROCESSABLE_ENTITY, "COMMENT_BODY_REQUIRED", "comment body is required", None);
+        return error_response(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "COMMENT_BODY_REQUIRED",
+            "comment body is required",
+            None,
+        );
     }
     if body.len() > COMMENT_MAX_BODY_LEN {
         return error_response(
@@ -141,17 +204,21 @@ pub(crate) async fn update_comment(
 
     let updated_at = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
 
-    let update_result = sqlx::query(
-        "UPDATE task_comments SET body = ?, updated_at = ? WHERE id = ?",
-    )
-    .bind(&body)
-    .bind(&updated_at)
-    .bind(comment_id)
-    .execute(&state.pool)
-    .await;
+    let update_result =
+        sqlx::query("UPDATE task_comments SET body = ?, updated_at = ? WHERE id = ?")
+            .bind(&body)
+            .bind(&updated_at)
+            .bind(comment_id)
+            .execute(&state.pool)
+            .await;
 
     if update_result.is_err() {
-        return error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_UPDATE_COMMENT_FAILED", "failed to update comment", None);
+        return error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "DB_UPDATE_COMMENT_FAILED",
+            "failed to update comment",
+            None,
+        );
     }
 
     match sqlx::query_as::<_, TaskComment>(
@@ -162,7 +229,12 @@ pub(crate) async fn update_comment(
     .await
     {
         Ok(comment) => Json(comment).into_response(),
-        Err(_) => error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_FETCH_COMMENT_FAILED", "failed to load updated comment", None),
+        Err(_) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "DB_FETCH_COMMENT_FAILED",
+            "failed to load updated comment",
+            None,
+        ),
     }
 }
 
@@ -176,11 +248,21 @@ pub(crate) async fn delete_comment(
         .await;
 
     let Ok(result) = result else {
-        return error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_DELETE_COMMENT_FAILED", "failed to delete comment", None);
+        return error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "DB_DELETE_COMMENT_FAILED",
+            "failed to delete comment",
+            None,
+        );
     };
 
     if result.rows_affected() == 0 {
-        return error_response(StatusCode::NOT_FOUND, "COMMENT_NOT_FOUND", "comment not found", None);
+        return error_response(
+            StatusCode::NOT_FOUND,
+            "COMMENT_NOT_FOUND",
+            "comment not found",
+            None,
+        );
     }
 
     StatusCode::NO_CONTENT.into_response()

@@ -34,7 +34,11 @@ impl AppState {
         sqlx::migrate!("./migrations").run(&pool).await?;
 
         let http_client = reqwest::Client::builder()
-            .user_agent(concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION")))
+            .user_agent(concat!(
+                env!("CARGO_PKG_NAME"),
+                "/",
+                env!("CARGO_PKG_VERSION")
+            ))
             .build()
             .expect("failed to build HTTP client");
 

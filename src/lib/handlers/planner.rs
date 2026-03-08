@@ -81,13 +81,12 @@ pub(crate) async fn plan_tasks(
     };
 
     // --- Fetch existing tasks for this goal (to avoid duplicate suggestions) ---
-    let existing_tasks: Vec<String> = sqlx::query_scalar(
-        "SELECT title FROM tasks WHERE goal = ? ORDER BY id ASC",
-    )
-    .bind(&goal)
-    .fetch_all(&state.pool)
-    .await
-    .unwrap_or_default();
+    let existing_tasks: Vec<String> =
+        sqlx::query_scalar("SELECT title FROM tasks WHERE goal = ? ORDER BY id ASC")
+            .bind(&goal)
+            .fetch_all(&state.pool)
+            .await
+            .unwrap_or_default();
 
     // --- Fetch tasks from other goals (broader context) ---
     let context_tasks: Vec<String> = sqlx::query_scalar(
@@ -106,7 +105,8 @@ pub(crate) async fn plan_tasks(
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| "http://127.0.0.1:8081/plan".to_string());
 
-    let feedback = payload.feedback
+    let feedback = payload
+        .feedback
         .as_deref()
         .unwrap_or("")
         .trim()
@@ -114,9 +114,7 @@ pub(crate) async fn plan_tasks(
         .take(500)
         .collect::<String>();
 
-    let target_count = payload.target_count
-        .map(|n| n.clamp(1, 15))
-        .unwrap_or(7);
+    let target_count = payload.target_count.map(|n| n.clamp(1, 15)).unwrap_or(7);
 
     let request_body = OrchestratorPlanRequest {
         goal: goal.clone(),

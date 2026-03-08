@@ -45,9 +45,7 @@ pub(crate) fn apply_list_task_filters(
                 query_builder.push(" WHERE ");
             }
 
-            query_builder
-                .push("status = ")
-                .push_bind(trimmed);
+            query_builder.push("status = ").push_bind(trimmed);
         }
     }
 }

@@ -7,12 +7,12 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use task_api_service::{AppState, build_router};
 use serde_json::Value;
 use std::{
     path::PathBuf,
     time::{SystemTime, UNIX_EPOCH},
 };
+use task_api_service::{AppState, build_router};
 use tower::ServiceExt;
 
 /// Holds test resources for one integration test case.

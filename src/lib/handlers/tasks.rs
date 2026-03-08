@@ -8,7 +8,9 @@ use sqlx::{QueryBuilder, Sqlite};
 
 use crate::app_state::AppState;
 use crate::models::{CreateTaskRequest, ListTasksQuery, Task, UpdateTaskRequest};
-use crate::validation::{completed_for_status, status_for_completed, validate_difficulty, validate_status, validate_title};
+use crate::validation::{
+    completed_for_status, status_for_completed, validate_difficulty, validate_status, validate_title,
+};
 
 use super::shared::{error_response, resolved_pagination};
 use super::tasks_support::{
@@ -22,8 +24,9 @@ pub(crate) async fn list_tasks(
 ) -> impl IntoResponse {
     let (limit, offset) = resolved_pagination(&params);
 
-    let mut query_builder =
-        QueryBuilder::<Sqlite>::new("SELECT id, title, completed, difficulty, goal, status, source, due_date, labels FROM tasks");
+    let mut query_builder = QueryBuilder::<Sqlite>::new(
+        "SELECT id, title, completed, difficulty, goal, status, source, due_date, labels FROM tasks",
+    );
     apply_list_task_filters(&mut query_builder, &params);
 
     query_builder
@@ -206,12 +209,20 @@ pub(crate) async fn update_task(
 
     if let Some(raw_due) = payload.due_date {
         let trimmed = raw_due.trim().to_string();
-        task.due_date = if trimmed.is_empty() { None } else { Some(trimmed) };
+        task.due_date = if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed)
+        };
     }
 
     if let Some(raw_labels) = payload.labels {
         let trimmed = raw_labels.trim().to_string();
-        task.labels = if trimmed.is_empty() { None } else { Some(trimmed) };
+        task.labels = if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed)
+        };
     }
 
     let update_result =

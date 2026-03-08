@@ -20,7 +20,9 @@ pub struct AuthClaims {
 
 impl AuthClaims {
     pub fn has_role(&self, role: &str) -> bool {
-        self.roles.iter().any(|candidate| candidate.eq_ignore_ascii_case(role))
+        self.roles
+            .iter()
+            .any(|candidate| candidate.eq_ignore_ascii_case(role))
     }
 }
 
@@ -113,8 +115,8 @@ pub fn validate_authorization_header(header_value: Option<&str>) -> Result<AuthC
 
     let key = decoding_key(algorithm)?;
 
-    let token_data = decode::<AuthClaims>(token, &key, &validation)
-        .map_err(|_| AuthError::InvalidToken)?;
+    let token_data =
+        decode::<AuthClaims>(token, &key, &validation).map_err(|_| AuthError::InvalidToken)?;
 
     Ok(token_data.claims)
 }

@@ -8,9 +8,7 @@ use serde_json::json;
 use sqlx::FromRow;
 
 use crate::app_state::AppState;
-use crate::models::{
-    AdminListQuery, AdminMetricsResponse, AdminRequestLog, AdminUserActivity,
-};
+use crate::models::{AdminListQuery, AdminMetricsResponse, AdminRequestLog, AdminUserActivity};
 
 use super::shared::error_response;
 

@@ -121,11 +121,10 @@ pub(crate) fn status_for_completed(completed: bool) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::{
-        DifficultyValidationError, GoalValidationError, StatusValidationError,
         GOAL_MAX_LENGTH, TASK_DIFFICULTY_MAX, TASK_DIFFICULTY_MIN, TITLE_MAX_LENGTH,
-        TitleValidationError, completed_for_status, normalize_search_query,
-        status_for_completed, validate_difficulty, validate_goal, validate_status,
-        validate_title,
+        DifficultyValidationError, GoalValidationError, StatusValidationError, TitleValidationError,
+        completed_for_status, normalize_search_query, status_for_completed, validate_difficulty,
+        validate_goal, validate_status, validate_title,
     };
 
     #[test]
