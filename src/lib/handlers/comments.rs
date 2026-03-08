@@ -104,16 +104,18 @@ pub(crate) async fn create_comment(
         return error_response(
             StatusCode::UNPROCESSABLE_ENTITY,
             "COMMENT_BODY_TOO_LONG",
-            &format!("comment body must not exceed {} characters", COMMENT_MAX_BODY_LEN),
+            &format!(
+                "comment body must not exceed {} characters",
+                COMMENT_MAX_BODY_LEN
+            ),
             None,
         );
     }
 
-    let author_id = validate_authorization_header(
-        headers.get(AUTH_HEADER).and_then(|v| v.to_str().ok()),
-    )
-    .ok()
-    .map(|c| c.sub);
+    let author_id =
+        validate_authorization_header(headers.get(AUTH_HEADER).and_then(|v| v.to_str().ok()))
+            .ok()
+            .map(|c| c.sub);
 
     let created_at = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
 
@@ -197,7 +199,10 @@ pub(crate) async fn update_comment(
         return error_response(
             StatusCode::UNPROCESSABLE_ENTITY,
             "COMMENT_BODY_TOO_LONG",
-            &format!("comment body must not exceed {} characters", COMMENT_MAX_BODY_LEN),
+            &format!(
+                "comment body must not exceed {} characters",
+                COMMENT_MAX_BODY_LEN
+            ),
             None,
         );
     }

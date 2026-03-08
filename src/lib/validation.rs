@@ -121,8 +121,8 @@ pub(crate) fn status_for_completed(completed: bool) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::{
-        GOAL_MAX_LENGTH, TASK_DIFFICULTY_MAX, TASK_DIFFICULTY_MIN, TITLE_MAX_LENGTH,
-        DifficultyValidationError, GoalValidationError, StatusValidationError, TitleValidationError,
+        DifficultyValidationError, GOAL_MAX_LENGTH, GoalValidationError, StatusValidationError,
+        TASK_DIFFICULTY_MAX, TASK_DIFFICULTY_MIN, TITLE_MAX_LENGTH, TitleValidationError,
         completed_for_status, normalize_search_query, status_for_completed, validate_difficulty,
         validate_goal, validate_status, validate_title,
     };
@@ -154,7 +154,10 @@ mod tests {
 
     #[test]
     fn validate_goal_rejects_blank() {
-        assert!(matches!(validate_goal("   "), Err(GoalValidationError::Empty)));
+        assert!(matches!(
+            validate_goal("   "),
+            Err(GoalValidationError::Empty)
+        ));
     }
 
     #[test]
@@ -162,13 +165,19 @@ mod tests {
         let too_long = "a".repeat(GOAL_MAX_LENGTH + 1);
         assert!(matches!(
             validate_goal(&too_long),
-            Err(GoalValidationError::TooLong { max: GOAL_MAX_LENGTH, .. })
+            Err(GoalValidationError::TooLong {
+                max: GOAL_MAX_LENGTH,
+                ..
+            })
         ));
     }
 
     #[test]
     fn validate_goal_trims_and_accepts_valid() {
-        assert_eq!(validate_goal("  learn Rust  "), Ok("learn Rust".to_string()));
+        assert_eq!(
+            validate_goal("  learn Rust  "),
+            Ok("learn Rust".to_string())
+        );
     }
 
     #[test]
@@ -178,8 +187,14 @@ mod tests {
 
     #[test]
     fn validate_difficulty_accepts_range() {
-        assert_eq!(validate_difficulty(TASK_DIFFICULTY_MIN), Ok(TASK_DIFFICULTY_MIN));
-        assert_eq!(validate_difficulty(TASK_DIFFICULTY_MAX), Ok(TASK_DIFFICULTY_MAX));
+        assert_eq!(
+            validate_difficulty(TASK_DIFFICULTY_MIN),
+            Ok(TASK_DIFFICULTY_MIN)
+        );
+        assert_eq!(
+            validate_difficulty(TASK_DIFFICULTY_MAX),
+            Ok(TASK_DIFFICULTY_MAX)
+        );
     }
 
     #[test]

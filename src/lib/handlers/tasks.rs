@@ -9,13 +9,14 @@ use sqlx::{QueryBuilder, Sqlite};
 use crate::app_state::AppState;
 use crate::models::{CreateTaskRequest, ListTasksQuery, Task, UpdateTaskRequest};
 use crate::validation::{
-    completed_for_status, status_for_completed, validate_difficulty, validate_status, validate_title,
+    completed_for_status, status_for_completed, validate_difficulty, validate_status,
+    validate_title,
 };
 
 use super::shared::{error_response, resolved_pagination};
 use super::tasks_support::{
-    apply_list_task_filters, difficulty_validation_error_response, status_validation_error_response,
-    title_validation_error_response,
+    apply_list_task_filters, difficulty_validation_error_response,
+    status_validation_error_response, title_validation_error_response,
 };
 
 pub(crate) async fn list_tasks(
