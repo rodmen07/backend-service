@@ -4,7 +4,7 @@ use axum::{
     extract::{Path, Query, State},
     response::IntoResponse,
 };
-use sqlx::{QueryBuilder, Sqlite};
+use sqlx::{QueryBuilder, Postgres};
 
 use crate::app_state::AppState;
 use crate::models::{CreateTaskRequest, ListTasksQuery, Task, UpdateTaskRequest};
@@ -25,7 +25,7 @@ pub(crate) async fn list_tasks(
 ) -> impl IntoResponse {
     let (limit, offset) = resolved_pagination(&params);
 
-    let mut query_builder = QueryBuilder::<Sqlite>::new(
+    let mut query_builder = QueryBuilder::<Postgres>::new(
         "SELECT id, title, completed, difficulty, goal, status, source, due_date, labels FROM tasks",
     );
     apply_list_task_filters(&mut query_builder, &params);
@@ -101,7 +101,7 @@ pub(crate) async fn create_task(
         .map(ToOwned::to_owned);
 
     let insert_result =
-        sqlx::query("INSERT INTO tasks (title, completed, difficulty, goal, status, source, due_date, labels) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+        sqlx::query_as::<_, Task>("INSERT INTO tasks (title, completed, difficulty, goal, status, source, due_date, labels) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, title, completed, difficulty, goal, status, source, due_date, labels")
         .bind(&title)
         .bind(completed)
         .bind(difficulty)
@@ -110,32 +110,15 @@ pub(crate) async fn create_task(
         .bind(source)
         .bind(due_date)
         .bind(labels)
-        .execute(&state.pool)
+        .fetch_one(&state.pool)
         .await;
 
-    let Ok(result) = insert_result else {
-        return error_response(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "DB_CREATE_TASK_FAILED",
-            "failed to create task",
-            None,
-        );
-    };
-
-    let task_id = result.last_insert_rowid();
-    let fetch_result = sqlx::query_as::<_, Task>(
-        "SELECT id, title, completed, difficulty, goal, status, source, due_date, labels FROM tasks WHERE id = ?",
-    )
-    .bind(task_id)
-    .fetch_one(&state.pool)
-    .await;
-
-    match fetch_result {
+    match insert_result {
         Ok(task) => (StatusCode::CREATED, Json(task)).into_response(),
         Err(_) => error_response(
             StatusCode::INTERNAL_SERVER_ERROR,
-            "DB_FETCH_CREATED_TASK_FAILED",
-            "failed to load created task",
+            "DB_CREATE_TASK_FAILED",
+            "failed to create task",
             None,
         ),
     }
@@ -147,7 +130,7 @@ pub(crate) async fn update_task(
     Json(payload): Json<UpdateTaskRequest>,
 ) -> impl IntoResponse {
     let existing =
-        sqlx::query_as::<_, Task>("SELECT id, title, completed, difficulty, goal, status, source, due_date, labels FROM tasks WHERE id = ?")
+        sqlx::query_as::<_, Task>("SELECT id, title, completed, difficulty, goal, status, source, due_date, labels FROM tasks WHERE id = $1")
             .bind(id)
             .fetch_optional(&state.pool)
             .await;
@@ -227,7 +210,7 @@ pub(crate) async fn update_task(
     }
 
     let update_result =
-        sqlx::query("UPDATE tasks SET title = ?, completed = ?, difficulty = ?, goal = ?, status = ?, due_date = ?, labels = ? WHERE id = ?")
+        sqlx::query("UPDATE tasks SET title = $1, completed = $2, difficulty = $3, goal = $4, status = $5, due_date = $6, labels = $7 WHERE id = $8")
         .bind(&task.title)
         .bind(task.completed)
         .bind(task.difficulty)
@@ -254,7 +237,7 @@ pub(crate) async fn delete_task(
     Path(id): Path<i64>,
     State(state): State<AppState>,
 ) -> impl IntoResponse {
-    let result = sqlx::query("DELETE FROM tasks WHERE id = ?")
+    let result = sqlx::query("DELETE FROM tasks WHERE id = $1")
         .bind(id)
         .execute(&state.pool)
         .await;

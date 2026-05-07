@@ -1,7 +1,7 @@
 use axum::http::StatusCode;
 use axum::response::Response;
 use serde_json::json;
-use sqlx::{QueryBuilder, Sqlite};
+use sqlx::{QueryBuilder, Postgres};
 
 use crate::models::ListTasksQuery;
 use crate::validation::{
@@ -11,7 +11,7 @@ use crate::validation::{
 use super::shared::error_response;
 
 pub(crate) fn apply_list_task_filters(
-    query_builder: &mut QueryBuilder<Sqlite>,
+    query_builder: &mut QueryBuilder<Postgres>,
     params: &ListTasksQuery,
 ) {
     let mut has_where_clause = false;

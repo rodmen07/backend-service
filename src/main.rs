@@ -12,11 +12,11 @@ use task_api_service::{AppState, build_router};
 /// Configuration is read from environment variables:
 /// - `HOST` (default: `0.0.0.0`)
 /// - `PORT` (default: `3000`)
-/// - `DATABASE_URL` (default: `sqlite://app.db`)
+/// - `DATABASE_URL` (default: `postgresql://localhost/task_api`)
 #[tokio::main]
 async fn main() {
     let host = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
-    let database_url = env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite://app.db".to_string());
+    let database_url = env::var("DATABASE_URL").unwrap_or_else(|_| "postgresql://localhost/task_api".to_string());
     let port = env::var("PORT")
         .ok()
         .and_then(|value| value.parse::<u16>().ok())

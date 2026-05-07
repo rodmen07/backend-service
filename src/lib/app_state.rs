@@ -2,32 +2,32 @@
 //!
 //! This module owns shared runtime state that handlers depend on.
 
-use sqlx::{SqlitePool, sqlite::SqlitePoolOptions};
+use sqlx::postgres::{PgPool, PgPoolOptions};
 
 /// Shared application state injected into handlers via Axum's `State` extractor.
 ///
-/// Cloning is cheap — both `SqlitePool` and `reqwest::Client` use internal `Arc`s.
+/// Cloning is cheap - both `PgPool` and `reqwest::Client` use internal `Arc`s.
 #[derive(Clone)]
 pub struct AppState {
-    pub(crate) pool: SqlitePool,
+    pub(crate) pool: PgPool,
     pub(crate) http_client: reqwest::Client,
 }
 
 impl AppState {
-    /// Builds application state from a SQLite connection string.
+    /// Builds application state from a PostgreSQL connection string.
     ///
     /// Creates a connection pool, runs pending migrations, and initialises a
     /// reusable HTTP client for upstream calls (e.g. the AI orchestrator).
     ///
     /// # Parameters
-    /// - `database_url`: SQLx-compatible SQLite URL (for example, `sqlite://app.db`).
+    /// - `database_url`: SQLx-compatible PostgreSQL URL (for example, `postgresql://user:pass@host/db`).
     ///
     /// # Returns
     /// - `Ok(AppState)` when a pool is created and all migrations are applied.
     /// - `Err(sqlx::Error)` when connection or migration steps fail.
     pub async fn from_database_url(database_url: &str) -> Result<Self, sqlx::Error> {
-        let pool = SqlitePoolOptions::new()
-            .max_connections(5)
+        let pool = PgPoolOptions::new()
+            .max_connections(10)
             .connect(database_url)
             .await?;
 

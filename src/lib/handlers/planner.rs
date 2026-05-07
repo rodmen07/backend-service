@@ -82,7 +82,7 @@ pub(crate) async fn plan_tasks(
 
     // --- Fetch existing tasks for this goal (to avoid duplicate suggestions) ---
     let existing_tasks: Vec<String> =
-        sqlx::query_scalar("SELECT title FROM tasks WHERE goal = ? ORDER BY id ASC")
+        sqlx::query_scalar("SELECT title FROM tasks WHERE goal = $1 ORDER BY id ASC")
             .bind(&goal)
             .fetch_all(&state.pool)
             .await
@@ -91,7 +91,7 @@ pub(crate) async fn plan_tasks(
     // --- Fetch tasks from other goals (broader context) ---
     let context_tasks: Vec<String> = sqlx::query_scalar(
         "SELECT title FROM tasks \
-         WHERE goal IS NOT NULL AND goal != '' AND goal != ? \
+         WHERE goal IS NOT NULL AND goal != '' AND goal != $1 \
          ORDER BY id DESC LIMIT 20",
     )
     .bind(&goal)

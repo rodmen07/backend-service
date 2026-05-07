@@ -4,7 +4,6 @@ use axum::{
     http::{HeaderMap, StatusCode},
     response::IntoResponse,
 };
-use chrono::Utc;
 
 use crate::app_state::AppState;
 use crate::auth::{AUTH_HEADER, validate_authorization_header};
@@ -18,7 +17,7 @@ pub(crate) async fn list_comments(
     Path(task_id): Path<i64>,
     State(state): State<AppState>,
 ) -> impl IntoResponse {
-    let task_exists = sqlx::query_scalar::<_, i64>("SELECT id FROM tasks WHERE id = ?")
+    let task_exists = sqlx::query_scalar::<_, i64>("SELECT id FROM tasks WHERE id = $1")
         .bind(task_id)
         .fetch_optional(&state.pool)
         .await;
@@ -44,7 +43,7 @@ pub(crate) async fn list_comments(
     }
 
     match sqlx::query_as::<_, TaskComment>(
-        "SELECT id, task_id, author_id, body, created_at, updated_at FROM task_comments WHERE task_id = ? ORDER BY created_at ASC",
+        "SELECT id, task_id, author_id, body, created_at, updated_at FROM task_comments WHERE task_id = $1 ORDER BY created_at ASC",
     )
     .bind(task_id)
     .fetch_all(&state.pool)
@@ -66,7 +65,7 @@ pub(crate) async fn create_comment(
     headers: HeaderMap,
     Json(payload): Json<CreateCommentRequest>,
 ) -> impl IntoResponse {
-    let task_exists = sqlx::query_scalar::<_, i64>("SELECT id FROM tasks WHERE id = ?")
+    let task_exists = sqlx::query_scalar::<_, i64>("SELECT id FROM tasks WHERE id = $1")
         .bind(task_id)
         .fetch_optional(&state.pool)
         .await;
@@ -117,40 +116,20 @@ pub(crate) async fn create_comment(
             .ok()
             .map(|c| c.sub);
 
-    let created_at = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
-
-    let insert_result = sqlx::query(
-        "INSERT INTO task_comments (task_id, author_id, body, created_at) VALUES (?, ?, ?, ?)",
+    match sqlx::query_as::<_, TaskComment>(
+        "INSERT INTO task_comments (task_id, author_id, body) VALUES ($1, $2, $3) RETURNING id, task_id, author_id, body, created_at, updated_at",
     )
     .bind(task_id)
     .bind(&author_id)
     .bind(&body)
-    .bind(&created_at)
-    .execute(&state.pool)
-    .await;
-
-    let Ok(result) = insert_result else {
-        return error_response(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "DB_CREATE_COMMENT_FAILED",
-            "failed to create comment",
-            None,
-        );
-    };
-
-    let comment_id = result.last_insert_rowid();
-    match sqlx::query_as::<_, TaskComment>(
-        "SELECT id, task_id, author_id, body, created_at, updated_at FROM task_comments WHERE id = ?",
-    )
-    .bind(comment_id)
     .fetch_one(&state.pool)
     .await
     {
         Ok(comment) => (StatusCode::CREATED, Json(comment)).into_response(),
         Err(_) => error_response(
             StatusCode::INTERNAL_SERVER_ERROR,
-            "DB_FETCH_COMMENT_FAILED",
-            "failed to load created comment",
+            "DB_CREATE_COMMENT_FAILED",
+            "failed to create comment",
             None,
         ),
     }
@@ -162,7 +141,7 @@ pub(crate) async fn update_comment(
     Json(payload): Json<UpdateCommentRequest>,
 ) -> impl IntoResponse {
     let existing = sqlx::query_as::<_, TaskComment>(
-        "SELECT id, task_id, author_id, body, created_at, updated_at FROM task_comments WHERE id = ?",
+        "SELECT id, task_id, author_id, body, created_at, updated_at FROM task_comments WHERE id = $1",
     )
     .bind(comment_id)
     .fetch_optional(&state.pool)
@@ -207,12 +186,9 @@ pub(crate) async fn update_comment(
         );
     }
 
-    let updated_at = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
-
     let update_result =
-        sqlx::query("UPDATE task_comments SET body = ?, updated_at = ? WHERE id = ?")
+        sqlx::query("UPDATE task_comments SET body = $1, updated_at = NOW() WHERE id = $2")
             .bind(&body)
-            .bind(&updated_at)
             .bind(comment_id)
             .execute(&state.pool)
             .await;
@@ -227,7 +203,7 @@ pub(crate) async fn update_comment(
     }
 
     match sqlx::query_as::<_, TaskComment>(
-        "SELECT id, task_id, author_id, body, created_at, updated_at FROM task_comments WHERE id = ?",
+        "SELECT id, task_id, author_id, body, created_at, updated_at FROM task_comments WHERE id = $1",
     )
     .bind(comment_id)
     .fetch_one(&state.pool)
@@ -247,7 +223,7 @@ pub(crate) async fn delete_comment(
     Path(comment_id): Path<i64>,
     State(state): State<AppState>,
 ) -> impl IntoResponse {
-    let result = sqlx::query("DELETE FROM task_comments WHERE id = ?")
+    let result = sqlx::query("DELETE FROM task_comments WHERE id = $1")
         .bind(comment_id)
         .execute(&state.pool)
         .await;

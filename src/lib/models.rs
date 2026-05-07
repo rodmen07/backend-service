@@ -2,6 +2,7 @@
 //!
 //! These types define the contract between clients, handlers, and the database layer.
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::FromRow;
@@ -86,8 +87,8 @@ pub struct TaskComment {
     pub task_id: i64,
     pub author_id: Option<String>,
     pub body: String,
-    pub created_at: String,
-    pub updated_at: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -117,7 +118,7 @@ pub struct AdminMetricsResponse {
 #[derive(Debug, Serialize, FromRow)]
 pub struct AdminRequestLog {
     pub id: i64,
-    pub occurred_at: String,
+    pub occurred_at: DateTime<Utc>,
     pub subject: Option<String>,
     pub method: String,
     pub path: String,
@@ -136,6 +137,6 @@ pub struct AdminListQuery {
 pub struct AdminUserActivity {
     pub subject: String,
     pub request_count: i64,
-    pub first_seen_at: String,
-    pub last_seen_at: String,
+    pub first_seen_at: DateTime<Utc>,
+    pub last_seen_at: DateTime<Utc>,
 }

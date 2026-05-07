@@ -26,7 +26,7 @@ struct RequestCounts {
 
 pub(crate) async fn admin_metrics(State(state): State<AppState>) -> impl IntoResponse {
     let task_counts = sqlx::query_as::<_, TaskCounts>(
-        "SELECT COUNT(*) as total_tasks, SUM(CASE WHEN completed = 1 THEN 1 ELSE 0 END) as completed_tasks FROM tasks",
+        "SELECT COUNT(*) as total_tasks, SUM(CASE WHEN completed = true THEN 1 ELSE 0 END) as completed_tasks FROM tasks",
     )
     .fetch_one(&state.pool)
     .await;
@@ -78,7 +78,7 @@ pub(crate) async fn admin_request_logs(
         "SELECT id, occurred_at, subject, method, path, status_code, duration_ms, user_agent
          FROM api_request_logs
          ORDER BY id DESC
-         LIMIT ? OFFSET ?",
+         LIMIT $1 OFFSET $2",
     )
     .bind(limit)
     .bind(offset)
@@ -113,7 +113,7 @@ pub(crate) async fn admin_user_activity(
          WHERE subject IS NOT NULL AND TRIM(subject) <> ''
          GROUP BY subject
          ORDER BY last_seen_at DESC
-         LIMIT ? OFFSET ?",
+         LIMIT $1 OFFSET $2",
     )
     .bind(limit)
     .bind(offset)
@@ -131,36 +131,13 @@ pub(crate) async fn admin_user_activity(
     }
 }
 
-/// Create an atomic SQLite backup via `VACUUM INTO`.
-///
-/// The backup is written to `/data/backups/app-<timestamp>.db`.
-pub(crate) async fn admin_backup(State(state): State<AppState>) -> impl IntoResponse {
-    let timestamp = chrono::Utc::now().format("%Y%m%dT%H%M%SZ");
-    let backup_dir = std::env::var("BACKUP_DIR").unwrap_or_else(|_| "/data/backups".to_string());
-    let backup_path = format!("{backup_dir}/app-{timestamp}.db");
-
-    // Ensure the backup directory exists.
-    if let Err(e) = tokio::fs::create_dir_all(&backup_dir).await {
-        return error_response(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "BACKUP_DIR_FAILED",
-            &format!("could not create backup directory: {e}"),
-            None,
-        );
-    }
-
-    let query = format!("VACUUM INTO '{backup_path}'");
-    match sqlx::query(&query).execute(&state.pool).await {
-        Ok(_) => Json(json!({
-            "status": "ok",
-            "backup_path": backup_path,
+/// Backup endpoint - not supported on PostgreSQL (use Cloud SQL automated backups).
+pub(crate) async fn admin_backup(State(_state): State<AppState>) -> impl IntoResponse {
+    (
+        StatusCode::NOT_IMPLEMENTED,
+        Json(json!({
+            "status": "not_implemented",
+            "message": "Database backup is managed by Cloud SQL automated backups. Use the GCP Console or gcloud CLI to export snapshots."
         }))
-        .into_response(),
-        Err(e) => error_response(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "BACKUP_FAILED",
-            &format!("VACUUM INTO failed: {e}"),
-            None,
-        ),
-    }
+    ).into_response()
 }

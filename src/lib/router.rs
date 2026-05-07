@@ -172,7 +172,7 @@ async fn audit_request(State(state): State<AppState>, request: Request, next: Ne
         let duration_ms = started_at.elapsed().as_millis() as i64;
         let status_code = i64::from(response.status().as_u16());
         let _ = sqlx::query(
-            "INSERT INTO api_request_logs (subject, method, path, status_code, duration_ms, user_agent) VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO api_request_logs (subject, method, path, status_code, duration_ms, user_agent) VALUES ($1, $2, $3, $4, $5, $6)",
         )
         .bind(subject)
         .bind(method)
