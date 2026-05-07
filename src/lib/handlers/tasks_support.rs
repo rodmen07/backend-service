@@ -1,7 +1,7 @@
 use axum::http::StatusCode;
 use axum::response::Response;
 use serde_json::json;
-use sqlx::{QueryBuilder, Postgres};
+use sqlx::{Postgres, QueryBuilder};
 
 use crate::models::ListTasksQuery;
 use crate::validation::{

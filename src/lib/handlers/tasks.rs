@@ -4,7 +4,7 @@ use axum::{
     extract::{Path, Query, State},
     response::IntoResponse,
 };
-use sqlx::{QueryBuilder, Postgres};
+use sqlx::{Postgres, QueryBuilder};
 
 use crate::app_state::AppState;
 use crate::models::{CreateTaskRequest, ListTasksQuery, Task, UpdateTaskRequest};
