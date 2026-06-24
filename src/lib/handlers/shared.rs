@@ -26,9 +26,9 @@ pub(super) fn error_response(
         .into_response()
 }
 
-pub(super) fn resolved_pagination(params: &ListTasksQuery) -> (u32, u32) {
+pub(super) fn resolved_pagination(params: &ListTasksQuery) -> (i64, i64) {
     let limit = params.limit.unwrap_or(50).clamp(1, 100);
-    let offset = params.offset.unwrap_or(0);
+    let offset = params.offset.unwrap_or(0).max(0);
     (limit, offset)
 }
 
@@ -68,7 +68,11 @@ mod tests {
     }
 
     #[test]
-    fn orchestrator_timeout_uses_default_for_invalid_values() {
+    fn orchestrator_timeout_reads_env_var() {
+        // These assertions all mutate the process-global
+        // AI_ORCHESTRATOR_TIMEOUT_SECONDS env var. They are kept in a single
+        // test (rather than split across tests) so they run sequentially and
+        // cannot race with each other under cargo's parallel test execution.
         unsafe {
             env::remove_var("AI_ORCHESTRATOR_TIMEOUT_SECONDS");
         }
@@ -83,13 +87,14 @@ mod tests {
             env::set_var("AI_ORCHESTRATOR_TIMEOUT_SECONDS", "invalid");
         }
         assert_eq!(orchestrator_timeout().as_secs_f64(), 15.0);
-    }
 
-    #[test]
-    fn orchestrator_timeout_accepts_positive_values() {
         unsafe {
             env::set_var("AI_ORCHESTRATOR_TIMEOUT_SECONDS", "2.5");
         }
         assert_eq!(orchestrator_timeout().as_secs_f64(), 2.5);
+
+        unsafe {
+            env::remove_var("AI_ORCHESTRATOR_TIMEOUT_SECONDS");
+        }
     }
 }

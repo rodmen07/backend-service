@@ -72,7 +72,7 @@ pub(crate) async fn admin_request_logs(
     Query(params): Query<AdminListQuery>,
 ) -> impl IntoResponse {
     let limit = params.limit.unwrap_or(50).clamp(1, 100);
-    let offset = params.offset.unwrap_or(0);
+    let offset = params.offset.unwrap_or(0).max(0);
 
     let records = sqlx::query_as::<_, AdminRequestLog>(
         "SELECT id, occurred_at, subject, method, path, status_code, duration_ms, user_agent
@@ -101,7 +101,7 @@ pub(crate) async fn admin_user_activity(
     Query(params): Query<AdminListQuery>,
 ) -> impl IntoResponse {
     let limit = params.limit.unwrap_or(50).clamp(1, 100);
-    let offset = params.offset.unwrap_or(0);
+    let offset = params.offset.unwrap_or(0).max(0);
 
     let records = sqlx::query_as::<_, AdminUserActivity>(
         "SELECT

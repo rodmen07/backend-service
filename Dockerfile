@@ -18,6 +18,11 @@ WORKDIR /app
 COPY --from=builder /app/target/release/task-api-service /usr/local/bin/task-api-service
 COPY --from=builder /app/migrations ./migrations
 
+# Run as an unprivileged user (SOC 2 CC6.8: containers must not run as root).
+RUN useradd --system --uid 1001 --user-group --no-create-home appuser \
+    && chown -R appuser:appuser /app
+USER appuser
+
 ENV HOST=0.0.0.0
 ENV PORT=8080
 

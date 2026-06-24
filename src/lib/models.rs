@@ -45,8 +45,8 @@ pub struct UpdateTaskRequest {
 
 #[derive(Debug, Deserialize, Default)]
 pub struct ListTasksQuery {
-    pub limit: Option<u32>,
-    pub offset: Option<u32>,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
     pub completed: Option<bool>,
     pub status: Option<String>,
     pub q: Option<String>,
@@ -129,8 +129,8 @@ pub struct AdminRequestLog {
 
 #[derive(Debug, Deserialize, Default)]
 pub struct AdminListQuery {
-    pub limit: Option<u32>,
-    pub offset: Option<u32>,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
 }
 
 #[derive(Debug, Serialize, FromRow)]
