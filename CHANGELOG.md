@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.3.0](https://github.com/rodmen07/backend-service/compare/task-api-service-v0.2.0...task-api-service-v0.3.0) (2026-06-24)
+
+
+### Features
+
+* migrate from SQLite to PostgreSQL, add Cloud Run deployment ([8fbf6b2](https://github.com/rodmen07/backend-service/commit/8fbf6b239ae0907a245e9b5ff41975995a9f7f8c))
+
+
+### Bug Fixes
+
+* **ci:** scope CI tests to lib/bins (integration suite needs Postgres) ([e75f21b](https://github.com/rodmen07/backend-service/commit/e75f21bb99df21259375c4870bcad5fbccfd32a8))
+* compile for Postgres + harden deploy gate ([b12b4cb](https://github.com/rodmen07/backend-service/commit/b12b4cba3fcaaa68dc82b70de002d872230273c1))
+* rustfmt - alphabetize sqlx imports, wrap long database_url line ([6b86f31](https://github.com/rodmen07/backend-service/commit/6b86f318d59b3bcff2164e67b3e22ceefa22b220))
+
 ## [0.2.0](https://github.com/rodmen07/backend-service/compare/task-api-service-v0.1.0...task-api-service-v0.2.0) (2026-03-08)
 
 
