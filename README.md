@@ -169,7 +169,6 @@ cargo clippy --all-targets --all-features -- -D warnings
 
 - **CI**: `.github/workflows/ci.yml` — fmt check, clippy (warnings denied), tests
 - **Deploy (primary)**: `.github/workflows/deploy-cloud-run.yml` — deploys to Google Cloud Run
-- **Deploy (legacy/manual)**: `.github/workflows/deploy-fly.yml` — Fly.io rollback workflow, manual dispatch only
 
 ## Codebase Reading Guide
 
