@@ -28,7 +28,7 @@ REST API microservice powering task management, AI-assisted goal planning, JWT-p
 | Auth | jsonwebtoken 8.3 |
 | Middleware | tower-http 0.6 (CORS, tracing) |
 | CI | GitHub Actions (fmt, clippy, test) |
-| Deployment | Fly.io (Docker) |
+| Deployment | Google Cloud Run (Docker) |
 
 ## Project Structure
 
@@ -168,7 +168,8 @@ cargo clippy --all-targets --all-features -- -D warnings
 ## CI / CD
 
 - **CI**: `.github/workflows/ci.yml` — fmt check, clippy (warnings denied), tests
-- **Deploy**: `.github/workflows/deploy-fly.yml` — pushes to Fly.io on `main`
+- **Deploy (primary)**: `.github/workflows/deploy-cloud-run.yml` — deploys to Google Cloud Run
+- **Deploy (legacy/manual)**: `.github/workflows/deploy-fly.yml` — Fly.io rollback workflow, manual dispatch only
 
 ## Codebase Reading Guide
 
