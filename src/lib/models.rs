@@ -107,6 +107,12 @@ pub struct HealthResponse {
 }
 
 #[derive(Debug, Serialize)]
+pub struct PublicLeadIntakeResponse {
+    pub status: &'static str,
+    pub forwarded: bool,
+}
+
+#[derive(Debug, Serialize)]
 pub struct AdminMetricsResponse {
     pub total_tasks: i64,
     pub completed_tasks: i64,

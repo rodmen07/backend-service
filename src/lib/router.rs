@@ -11,7 +11,7 @@ use axum::{
     http::{HeaderValue, Method},
     middleware::{Next, from_fn, from_fn_with_state},
     response::{IntoResponse, Response},
-    routing::{get, patch},
+    routing::{get, patch, post},
 };
 use serde_json::json;
 use tower_http::{
@@ -23,8 +23,8 @@ use crate::app_state::AppState;
 use crate::auth::{AUTH_HEADER, AuthClaims, validate_authorization_header};
 use crate::handlers::{
     admin_backup, admin_metrics, admin_request_logs, admin_user_activity, clear_plan_tasks,
-    create_comment, create_task, delete_comment, delete_task, health, info, list_comments,
-    list_tasks, plan_tasks, ready, update_comment, update_task,
+    create_comment, create_public_lead, create_task, delete_comment, delete_task, health, info,
+    list_comments, list_tasks, plan_tasks, ready, update_comment, update_task,
 };
 use crate::models::ApiError;
 use crate::rate_limit::rate_limit_middleware;
@@ -61,6 +61,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/health", get(health))
         .route("/ready", get(ready))
         .route("/api/v1/info", get(info))
+        .route("/api/v1/public/lead-intake", post(create_public_lead))
         .merge(protected_routes)
         .layer(from_fn(rate_limit_middleware))
         .layer(from_fn_with_state(state.clone(), audit_request))

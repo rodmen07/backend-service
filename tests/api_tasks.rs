@@ -342,6 +342,68 @@ async fn ready_endpoint_reports_ready() {
     assert_eq!(payload["status"], "ready");
 }
 
+/// Verifies public lead intake rejects invalid payloads.
+#[tokio::test]
+async fn public_lead_intake_rejects_missing_email() {
+    let test_app = test_app().await;
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/api/v1/public/lead-intake")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"event_type":"lead_magnet"}"#))
+        .expect("failed to build lead intake request");
+
+    let response = test_app
+        .app
+        .clone()
+        .oneshot(request)
+        .await
+        .expect("lead intake request failed");
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    let body_bytes = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("failed reading response body");
+    let payload: Value =
+        serde_json::from_slice(&body_bytes).expect("failed to parse error response body");
+
+    assert_eq!(payload["code"], "VALIDATION_EMAIL_REQUIRED");
+}
+
+/// Verifies public lead intake accepts valid payloads.
+#[tokio::test]
+async fn public_lead_intake_accepts_valid_payload() {
+    let test_app = test_app().await;
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/api/v1/public/lead-intake")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            r#"{"email":"founder@example.com","event_type":"lead_magnet","lead_source":"lead-magnet-page"}"#,
+        ))
+        .expect("failed to build lead intake request");
+
+    let response = test_app
+        .app
+        .clone()
+        .oneshot(request)
+        .await
+        .expect("lead intake request failed");
+
+    assert_eq!(response.status(), StatusCode::ACCEPTED);
+
+    let body_bytes = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("failed reading response body");
+    let payload: Value =
+        serde_json::from_slice(&body_bytes).expect("failed to parse response body");
+
+    assert_eq!(payload["status"], "accepted");
+}
+
 /// Verifies v1 stance: API remains accessible without authentication headers.
 #[tokio::test]
 async fn v1_allows_requests_without_auth() {

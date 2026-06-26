@@ -89,6 +89,7 @@ Migrations run automatically at startup.
 | `ALLOWED_ORIGINS` | *(permissive)* | Comma-separated CORS allowlist |
 | `AI_ORCHESTRATOR_PLAN_URL` | `http://127.0.0.1:8081/plan` | Upstream planner endpoint |
 | `AI_ORCHESTRATOR_TIMEOUT_SECONDS` | `15` | Upstream HTTP timeout |
+| `LEAD_INTAKE_FORWARD_URL` | *(unset)* | Optional webhook URL for forwarding public lead-intake payloads |
 
 ## API Endpoints
 
@@ -97,6 +98,7 @@ Migrations run automatically at startup.
 | `GET` | `/health` | — | Process liveness |
 | `GET` | `/ready` | — | Database readiness (`SELECT 1`) |
 | `GET` | `/api/v1/info` | — | Service version and feature flags |
+| `POST` | `/api/v1/public/lead-intake` | — | Public lead-intake proxy (persists payload and optionally forwards) |
 | `GET` | `/api/v1/tasks` | Bearer | List tasks (filters: `limit`, `offset`, `completed`, `status`, `q`) |
 | `POST` | `/api/v1/tasks` | Bearer | Create task |
 | `PATCH` | `/api/v1/tasks/{id}` | Bearer | Update task fields |
@@ -139,6 +141,11 @@ curl -X DELETE http://localhost:3000/api/v1/tasks/1
 
 # Service info
 curl http://localhost:3000/api/v1/info
+
+# Public lead intake (consultation or lead-magnet payload)
+curl -X POST http://localhost:3000/api/v1/public/lead-intake \
+  -H "Content-Type: application/json" \
+  -d '{"email":"founder@example.com","event_type":"lead_magnet","lead_source":"lead-magnet-page","magnet_slug":"infrastructure-audit-checklist"}'
 ```
 
 ## Test
