@@ -74,7 +74,9 @@ fn auth_enforced() -> bool {
     env::var("AUTH_ENFORCED")
         .ok()
         .map(|value| value.trim().eq_ignore_ascii_case("true"))
-        .unwrap_or(false)
+        // Fail closed: if AUTH_ENFORCED is unset/misspelled, enforce auth rather
+        // than silently exposing every protected and admin route.
+        .unwrap_or(true)
 }
 
 fn claims_from_request(request: &Request) -> Result<AuthClaims, crate::auth::AuthError> {

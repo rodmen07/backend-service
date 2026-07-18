@@ -44,8 +44,10 @@ pub(crate) async fn plan_tasks(
         let forwarded = headers
             .get("x-forwarded-for")
             .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.split(',').next())
-            .map(|s| s.trim().to_owned());
+            // rightmost XFF hop (trusted proxy) — leftmost is client-spoofable
+            .and_then(|v| v.rsplit(',').next())
+            .map(|s| s.trim().to_owned())
+            .filter(|s| !s.is_empty());
 
         forwarded.unwrap_or_else(|| addr.ip().to_string())
     };

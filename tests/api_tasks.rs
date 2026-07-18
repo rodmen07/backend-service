@@ -46,6 +46,12 @@ impl Drop for TestApp {
 /// # Returns
 /// - `TestApp` containing a configured router and unique DB path.
 async fn test_app() -> TestApp {
+    // Integration tests exercise task CRUD without auth. The service now fails
+    // closed (AUTH_ENFORCED defaults to true), so disable enforcement explicitly.
+    unsafe {
+        std::env::set_var("AUTH_ENFORCED", "false");
+    }
+
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("system clock before unix epoch")

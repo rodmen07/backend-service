@@ -15,6 +15,9 @@ use task_api_service::{AppState, build_router};
 /// - `DATABASE_URL` (default: `postgresql://localhost/task_api`)
 #[tokio::main]
 async fn main() {
+    if let Err(reason) = task_api_service::validate_startup_config() {
+        panic!("refusing to boot: insecure auth configuration: {reason}");
+    }
     let host = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
     let database_url =
         env::var("DATABASE_URL").unwrap_or_else(|_| "postgresql://localhost/task_api".to_string());

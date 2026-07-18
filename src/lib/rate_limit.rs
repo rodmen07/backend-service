@@ -59,6 +59,10 @@ static BUCKETS: LazyLock<Mutex<HashMap<String, Bucket>>> =
 static PLAN_BUCKETS: LazyLock<Mutex<HashMap<String, Bucket>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
+/// Upper bound on tracked IP buckets before an opportunistic sweep of expired
+/// entries runs, bounding memory against unbounded-map growth.
+const MAX_TRACKED_KEYS: usize = 10_000;
+
 fn check_bucket(
     map: &mut HashMap<String, Bucket>,
     key: &str,
@@ -67,6 +71,12 @@ fn check_bucket(
 ) -> bool {
     let now = Instant::now();
     let cutoff = now - window;
+
+    // Bound memory: prune buckets whose timestamps have all expired. Without this,
+    // one-off (easily spoofed) IPs accumulate forever — an unbounded-map memory DoS.
+    if map.len() > MAX_TRACKED_KEYS {
+        map.retain(|_, b| b.timestamps.iter().any(|t| *t > cutoff));
+    }
 
     let bucket = map.entry(key.to_owned()).or_insert_with(|| Bucket {
         timestamps: Vec::new(),
@@ -108,14 +118,20 @@ pub fn is_plan_allowed(key: &str) -> bool {
 // IP extraction
 // ---------------------------------------------------------------------------
 
-/// Best-effort client IP: X-Forwarded-For first hop → direct peer address.
+/// Best-effort client IP for rate limiting.
+///
+/// Uses the **rightmost** X-Forwarded-For entry (the hop appended by the trusted
+/// proxy in front of the service), never the leftmost, which is fully
+/// client-controlled and lets a caller rotate it to evade per-IP limits or target
+/// a victim IP. Falls back to the direct peer address.
 pub fn client_ip(request: &Request) -> String {
     if let Some(forwarded) = request
         .headers()
         .get("x-forwarded-for")
         .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.split(',').next())
+        .and_then(|v| v.rsplit(',').next())
         .map(|s| s.trim().to_owned())
+        .filter(|s| !s.is_empty())
     {
         return forwarded;
     }

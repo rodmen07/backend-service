@@ -19,5 +19,5 @@ mod router;
 mod validation;
 
 pub use app_state::AppState;
-pub use auth::{AUTH_HEADER, AUTH_SCHEME, frozen_auth_header_format};
+pub use auth::{AUTH_HEADER, AUTH_SCHEME, frozen_auth_header_format, validate_startup_config};
 pub use router::build_router;

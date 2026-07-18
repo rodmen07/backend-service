@@ -51,8 +51,44 @@ impl AuthError {
     }
 }
 
+/// The published insecure development secret. Booting with this as the HMAC
+/// signing secret would let anyone forge admin tokens, so `validate_startup_config`
+/// refuses to start in that case.
+pub const DEV_INSECURE_SECRET: &str = "dev-insecure-secret-change-me";
+
 fn auth_secret() -> String {
-    env::var("AUTH_JWT_SECRET").unwrap_or_else(|_| "dev-insecure-secret-change-me".to_string())
+    env::var("AUTH_JWT_SECRET").unwrap_or_else(|_| DEV_INSECURE_SECRET.to_string())
+}
+
+/// Validate security-critical auth configuration at startup, returning an error
+/// (so the caller can refuse to boot) on an insecure setup. With an HMAC
+/// algorithm, an unset/empty/dev-default `AUTH_JWT_SECRET` is fatal because the
+/// signing key would otherwise be a published constant.
+pub fn validate_startup_config() -> Result<(), String> {
+    let is_hmac = matches!(
+        auth_algorithm(),
+        Algorithm::HS256 | Algorithm::HS384 | Algorithm::HS512
+    );
+    if is_hmac {
+        match env::var("AUTH_JWT_SECRET") {
+            Err(_) => {
+                return Err(
+                    "AUTH_JWT_SECRET must be set when AUTH_JWT_ALGORITHM is HMAC (HS*)".to_string(),
+                );
+            }
+            Ok(secret) if secret.trim().is_empty() => {
+                return Err("AUTH_JWT_SECRET must not be empty".to_string());
+            }
+            Ok(secret) if secret == DEV_INSECURE_SECRET => {
+                return Err(
+                    "AUTH_JWT_SECRET is set to the insecure dev default; set a strong secret"
+                        .to_string(),
+                );
+            }
+            Ok(_) => {}
+        }
+    }
+    Ok(())
 }
 
 fn auth_algorithm() -> Algorithm {
